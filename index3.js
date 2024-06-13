@@ -27,8 +27,8 @@ const toBlobURL = async (url, mimeType) => {
 
 const load = async () => {
     loadBtn.setAttribute('disabled', true);
-    // const ffmpegBlobURL = await toBlobURL(`${baseURL}/814.ffmpeg.js`, 'text/javascript');
-    // await import(ffmpegBlobURL);
+    const ffmpegBlobURL = await toBlobURL(`${baseURL}/814.ffmpeg.js`, 'text/javascript');
+    await import(ffmpegBlobURL);
     var loadConfig = null;
     if (useMultiThreadIfAvailable && window.crossOriginIsolated) {
         loadConfig = {

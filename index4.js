@@ -17,7 +17,7 @@ const baseURLFFMPEG = 'ffmpeg-wasm/ffmpeg';
 const baseURLCore = 'ffmpeg-wasm/core';
 const baseURLCoreMT = 'ffmpeg-wasm/core-mt';
 const workerBFSLoaderURL = 'worker.loader.js';
-const baseURL = 'packages';
+const baseURL = './';
 
 const toBlobURL = async (url, mimeType) => {
     const resp = await fetch(url);
@@ -28,21 +28,21 @@ const toBlobURL = async (url, mimeType) => {
 
 const load = async () => {
     loadBtn.setAttribute('disabled', true);
-    // const ffmpegBlobURL = await toBlobURL(`${baseURL}/814.ffmpeg.js`, 'text/javascript');
-    // await import(ffmpegBlobURL);
+    const ffmpegBlobURL = `${baseURL}/ffmpeg.js`
+    await import(ffmpegBlobURL);
     var loadConfig = null;
     if (useMultiThreadIfAvailable && window.crossOriginIsolated) {
         loadConfig = {
-            workerLoadURL: await toBlobURL(`${baseURL}/814.ffmpeg.js`,  'text/javascript'),
-            coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
-            wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
-            workerURL: await toBlobURL(`${baseURL}/ffmpeg-core.worker.js`, 'text/javascript'),
-        };
+            workerLoadURL: `${baseURL}/814.ffmpeg.js`,
+           wasmURL: `${baseURL}/ffmpeg-core.wasm`,
+            workerURL: `${baseURL}/ffmpeg-core.worker.js`,
+            coreURL:`${baseURL}/ffmpeg-core.js`,
+        }
     } else {
         loadConfig = {
-            coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
-            wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
-            workerLoadURL: await toBlobURL(`${baseURL}/814.ffmpeg.js`,  'text/javascript')
+            coreURL:`${baseURL}/ffmpeg-core.js`,
+            wasmURL: `${baseURL}/ffmpeg-core.wasm`,
+            workerLoadURL: `${baseURL}/814.ffmpeg.js`
         };
     }
     var tasks = [];
@@ -91,7 +91,7 @@ const transcodeLocalFileInputToMediaSource = async () => {
 
 const transcodeFileToMediaSource = async (file) => {
     console.log('file', file);
-    const inputDir = '/input';
+    const inputDir = 'tests';
     const inputFile = `${inputDir}/${file.name}`;
     console.log('inputFile', inputFile);
     // mount the input file in each ffmpeg instance

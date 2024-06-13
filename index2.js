@@ -88,7 +88,9 @@ const transcodeFileToMediaSource = async (file) => {
     const inputDir = '/tests';
     const inputFile = `${inputDir}/${file.name}`;
     console.log('inputFile', inputFile);
-    var useWorkerFS = ffmpegs[0].mount && ffmpegs[0].unmount && useWorkerFSIfAvailable;
+    //var useWorkerFS = ffmpegs[0].FS('mount') && ffmpegs[0].FS('mount') && useWorkerFSIfAvailable;
+    let useWorkerFS=true;
+    console.log("useWorker",useWorkerFS)
     try {
         await Promise.all(ffmpegs.map(async (ffmpeg) => {
             ffmpeg.FS('mkdir', inputDir);
@@ -104,7 +106,7 @@ const transcodeFileToMediaSource = async (file) => {
         return;
     }
 
-    var duration = await calculateDurationFromLoadRate(file);
+    var duration = 3000
     if (duration > 0) {
         const mimeCodec = 'video/mp4; codecs="avc1.64001f"';
         const mediaSource = new MediaSource();
@@ -209,23 +211,6 @@ const transcodeFileToMediaSource = async (file) => {
     }));
 };
 
-const calculateDurationFromLoadRate = async (file) => {
-    const startTime = performance.now();
-    const buffer = new Uint8Array(await file.arrayBuffer());
-    const endTime = performance.now();
-    const downloadTime = (endTime - startTime) / 1000; // convert to seconds
-    const fileSizeInBytes = buffer.length;
-    const downloadSpeed = fileSizeInBytes / downloadTime; // bytes per second
-
-    // Assuming the total file size is known (e.g., from file metadata or a separate API)
-    const totalFileSize = file.size; // total file size in bytes
-    const estimatedTotalDuration = totalFileSize / downloadSpeed;
-
-    console.log(`Download Speed: ${downloadSpeed} bytes/sec`);
-    console.log(`Estimated Total Duration: ${estimatedTotalDuration} seconds`);
-
-    return estimatedTotalDuration; // returns duration in seconds
-};
 
 window.addEventListener("load", async (event) => {
     localFileInput = document.querySelector('#local-file');
