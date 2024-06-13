@@ -113,32 +113,32 @@ const transcodeFileToMediaSource = async (file) => {
     }));
     var duration = await getDuration(inputFile);
     if (duration > 0) {
-        var initialChunk = null;
-        if (ffmpegs.length > 0) {
-            const tempOutput = 'temp.mp4';
-            await ffmpegs[0].exec([
-                "-i", inputFile,
-                "-t", "1",  // Extract 1 second of data for codec analysis
-                "-c", "copy",
-                "-f", "mp4",
-                "-y", tempOutput  // Overwrite if exists
-            ]);
-            initialChunk = await ffmpegs[0].readFile(tempOutput);
-            await ffmpegs[0].deleteFile(tempOutput);
-        }
+        // var initialChunk = null;
+        // if (ffmpegs.length > 0) {
+        //     const tempOutput = 'temp.mp4';
+        //     await ffmpegs[0].exec([
+        //         "-i", inputFile,
+        //         "-t", "1",  // Extract 1 second of data for codec analysis
+        //         "-c", "copy",
+        //         "-f", "mp4",
+        //         "-y", tempOutput  // Overwrite if exists
+        //     ]);
+        //     initialChunk = await ffmpegs[0].readFile(tempOutput);
+        //     await ffmpegs[0].deleteFile(tempOutput);
+        // }
 
-        // Use mux.js to determine the codecs
-        if (initialChunk) {
-            console.log(" Use mux.js to determine the codecs............................")
-            const codecs = muxjs.mp4.probe.tracks(new Uint8Array(initialChunk))
-                .map(t => t.codec)
-                .join(",");
-            var mimeCodec = `video/mp4; codecs="${codecs}"`;
-            console.log(mimeCodec)
-        } else {
-            var mimeCodec = 'video/mp4; codecs="avc1.64001f"';  // Fallback codec
-        }
-
+        // // Use mux.js to determine the codecs
+        // if (initialChunk) {
+        //     console.log(" Use mux.js to determine the codecs............................")
+        //     const codecs = muxjs.mp4.probe.tracks(new Uint8Array(initialChunk))
+        //         .map(t => t.codec)
+        //         .join(",");
+        //     var mimeCodec = `video/mp4; codecs="${codecs}"`;
+        //     console.log(mimeCodec)
+        // } else {
+        //     var mimeCodec = 'video/mp4; codecs="avc1.64001f"';  // Fallback codec
+        // }
+        var mimeCodec = `video/mp4; codecs="avc1.64001f,mp4a.40.2"`;        ; 
         const mediaSource = new MediaSource();
         var mediaSourceURL = '';
         var jobs = [];
