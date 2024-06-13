@@ -56,44 +56,44 @@ const bufferStream = filename =>
     }, 200);
   });
 
-const mediaSource = new MediaSource();
-videoPlayer.src = URL.createObjectURL(mediaSource);
-videoPlayer.play();
-
-const mediaSourceOpen = fromEvent(mediaSource, "sourceopen");
-
-const bufferStreamReady = combineLatest(
-  mediaSourceOpen,
-  bufferStream("tests/index.mkv")
-).pipe(map(([, a]) => a));
-
-const sourceBufferUpdateEnd = bufferStreamReady.pipe(
-  take(1),
-  map(buffer => {
-    // create a buffer using the correct mime type
-    const mime = `video/mp4; codecs="${muxjs.mp4.probe
-      .tracks(buffer)
-      .map(t => t.codec)
-      .join(",")}"`;
-    const sourceBuf = mediaSource.addSourceBuffer(mime);
-
-    // append the buffer
-    mediaSource.duration = 5;
-    sourceBuf.timestampOffset = 0;
-    sourceBuf.appendBuffer(buffer);
-
-    // create a new event stream 
-    return fromEvent(sourceBuf, "updateend").pipe(map(() => sourceBuf));
-  }),
-  flatMap(value => value)
-);
-
-zip(sourceBufferUpdateEnd, bufferStreamReady.pipe(skip(1)))
-  .pipe(
-    map(([sourceBuf, buffer]) => {
-      mediaSource.duration += 5;
-      sourceBuf.timestampOffset += 5;
-      sourceBuf.appendBuffer(buffer.buffer);
-    })
-  )
-  .subscribe();
+  const mediaSource = new MediaSource();
+  videoPlayer.src = URL.createObjectURL(mediaSource);
+  videoPlayer.play();
+  
+  const mediaSourceOpen = fromEvent(mediaSource, "sourceopen");
+  
+  const bufferStreamReady = combineLatest(
+    mediaSourceOpen,
+    bufferStream("tests/4club-JTV-i63.mp4")
+  ).pipe(map(([, a]) => a));
+  
+  const sourceBufferUpdateEnd = bufferStreamReady.pipe(
+    take(1),
+    map(buffer => {
+      // create a buffer using the correct mime type
+      const mime = `video/mp4; codecs="${muxjs.mp4.probe
+        .tracks(buffer)
+        .map(t => t.codec)
+        .join(",")}"`;
+      const sourceBuf = mediaSource.addSourceBuffer(mime);
+  
+      // append the buffer
+      mediaSource.duration = 5;
+      sourceBuf.timestampOffset = 0;
+      sourceBuf.appendBuffer(buffer);
+  
+      // create a new event stream 
+      return fromEvent(sourceBuf, "updateend").pipe(map(() => sourceBuf));
+    }),
+    flatMap(value => value)
+  );
+  
+  zip(sourceBufferUpdateEnd, bufferStreamReady.pipe(skip(1)))
+    .pipe(
+      map(([sourceBuf, buffer]) => {
+        mediaSource.duration += 5;
+        sourceBuf.timestampOffset += 5;
+        sourceBuf.appendBuffer(buffer.buffer);
+      })
+    )
+    .subscribe();

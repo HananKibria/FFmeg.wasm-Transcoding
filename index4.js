@@ -113,32 +113,32 @@ const transcodeFileToMediaSource = async (file) => {
     }));
     var duration = await getDuration(inputFile);
     if (duration > 0) {
-        // var initialChunk = null;
-        // if (ffmpegs.length > 0) {
-        //     const tempOutput = 'temp.mp4';
-        //     await ffmpegs[0].exec([
-        //         "-i", inputFile,
-        //         "-t", "1",  // Extract 1 second of data for codec analysis
-        //         "-c", "copy",
-        //         "-f", "mp4",
-        //         "-y", tempOutput  // Overwrite if exists
-        //     ]);
-        //     initialChunk = await ffmpegs[0].readFile(tempOutput);
-        //     await ffmpegs[0].deleteFile(tempOutput);
-        // }
+        var initialChunk = null;
+        if (ffmpegs.length > 0) {
+            const tempOutput = 'temp.mp4';
+            await ffmpegs[0].exec([
+                "-i", inputFile,
+                "-t", "1",  // Extract 1 second of data for codec analysis
+                "-c", "copy",
+                "-f", "mp4",
+                "-y", tempOutput  // Overwrite if exists
+            ]);
+            initialChunk = await ffmpegs[0].readFile(tempOutput);
+            await ffmpegs[0].deleteFile(tempOutput);
+        }
 
-        // // Use mux.js to determine the codecs
-        // if (initialChunk) {
-        //     console.log(" Use mux.js to determine the codecs............................")
-        //     const codecs = muxjs.mp4.probe.tracks(new Uint8Array(initialChunk))
-        //         .map(t => t.codec)
-        //         .join(",");
-        //     var mimeCodec = `video/mp4; codecs="${codecs}"`;
-        //     console.log(mimeCodec)
-        // } else {
-        //     var mimeCodec = 'video/mp4; codecs="avc1.64001f"';  // Fallback codec
-        // }
-        var mimeCodec = `video/mp4; codecs="avc1.64001f,mp4a.40.2"`;        ; 
+        // Use mux.js to determine the codecs
+        if (initialChunk) {
+            console.log(" Use mux.js to determine the codecs............................")
+            const codecs = muxjs.mp4.probe.tracks(new Uint8Array(initialChunk))
+                .map(t => t.codec)
+                .join(",");
+            var mimeCodec = `video/mp4; codecs="${codecs}"`;
+            console.log(mimeCodec)
+        } else {
+            var mimeCodec = 'video/mp4; codecs="avc1.64001f"';  // Fallback codec
+        }
+
         const mediaSource = new MediaSource();
         var mediaSourceURL = '';
         var jobs = [];
@@ -218,6 +218,34 @@ const transcodeFileToMediaSource = async (file) => {
                 console.log(`Segment start: ${job.id} ${job.chunkStart} ${job.chunkDuration}`);
                 //await new Promise((r) => setTimeout(r, 1000));
                 const outputFile = `/output.${job.id}.mp4`;
+
+                // await ffmpeg.exec([
+                //     '-nostats',
+                //     '-loglevel', 'error',
+                //     '-i', inputFile,                     // Input video file
+                //     '-map', '0:v',                       // Map the video stream
+                //     '-map', '0:a',                       // Map the audio stream
+                //     '-c:v', 'libx264',                   // Set video codec to H.264
+                //     '-preset', 'ultrafast',              // Fastest encoding preset
+                //     '-crf', '15',                        // Constant Rate Factor for video quality
+                //     '-c:a', 'aac',                       // Set audio codec to AAC
+                //     '-b:a', '192k',                      // Set audio bitrate
+                //     '-movflags', 'faststart+frag_every_frame+empty_moov+default_base_moof',
+                //     '-ss', `${job.chunkStart}`,          // Start time for the chunk
+                //     '-t', `${job.chunkDuration}`,        // Duration for the chunk
+                //     'temp_video.mp4',                    // Output temporary video file
+                //     'temp_audio.aac'                     // Output temporary audio file
+                // ]);
+                // await ffmpeg.exec([
+                //     '-nostats',
+                //     '-loglevel', 'error',
+                //     '-i', 'temp_video.mp4',              // Input temporary video file
+                //     '-i', 'temp_audio.aac',              // Input temporary audio file
+                //     '-c:v', 'copy',                      // Copy video stream without re-encoding
+                //     '-c:a', 'copy',                      // Copy audio stream without re-encoding
+                //     '-movflags', 'faststart+frag_every_frame+empty_moov+default_base_moof',
+                //     outputFile                       // Final output file
+                // ]);
                 await ffmpeg.exec([
                     '-nostats',
                     '-loglevel', 'error',
@@ -228,7 +256,7 @@ const transcodeFileToMediaSource = async (file) => {
                     '-t', `${job.chunkDuration}`,
                     '-preset', 'ultrafast',
                     '-c:v', 'libx264',    
-                    '-crf', '23',         
+                    '-crf', '12',         
                     'temp_video.mp4',     
                 ]);
                 
@@ -240,7 +268,7 @@ const transcodeFileToMediaSource = async (file) => {
                     '-ss', `${job.chunkStart}`,
                     '-t', `${job.chunkDuration}`,
                     '-c:a', 'aac',        
-                    '-b:a', '192k',      
+                    '-b:a', '92k',      
                     'temp_audio.aac',    
                 ]);
                 
