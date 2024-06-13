@@ -1,15 +1,31 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
+
+
+
+
+
+    <video autoplay muted id="video-result" controls></video><br />
+    <button disabled id="load-button">Load ffmpeg-core (~31 MB)</button><br />
+    <!-- <button style="display: none;" disabled id="select-input-button">Transcode local file</button> -->
+    <input  type="file" id="local-file" accept=".mp4,.m4v,.webm,.avi,.mkv,.mov,.wmv" /><br />
+    <p id="log-div"></p>
+
+<script src="coi-serviceworker.js"></script>
+<script src="packages/814.ffmpeg.js"></script>
+<script src="packages/ffmpeg.min.js"></script>
+<script src="index2.js"></script>
+
+<!-- <meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
 <h2> transcoding with FFmpeg.wasm</h2>
 
 <video width="400" controls id="videoPlayer" muted="muted">
   Your browser does not support HTML video.
 </video>
-<script src="coi-serviceworker.js"></script>
 
-<script src="packages/mux.min.js"></script>
-<script src="packages/ffmpeg.min.js"></script>
+
 <script src="https://unpkg.com/rxjs@6.6.3/bundles/rxjs.umd.js"></script>
-<script src="app.js"></script>
-
+<script src="index2.js"></script> -->
