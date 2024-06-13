@@ -1,8 +1,12 @@
-<script src="index4.js"></script>
+<script src="coi-serviceworker.js"></script>
+<script src="packages/mux.min.js"></script>
+<script src="packages/ffmpeg.js"></script>
+
+<script  src="index4.js"></script>
 </head>
 <body>
-    <video autoplay muted id="video-result" controls></video><br />
-    <button disabled id="load-button">Load ffmpeg-core (~31 MB)</button><br />
+    <video muted="muted" autoplay id="video-result" controls></video><br />
+    <button disabled id="load-button">Load ffmpeg-core</button><br />
     <!-- <button style="display: none;" disabled id="select-input-button">Transcode local file</button> -->
     <input disabled type="file" id="local-file" accept=".mp4,.m4v,.webm,.avi,.mkv,.mov,.wmv" /><br />
     <p id="log-div"></p>
