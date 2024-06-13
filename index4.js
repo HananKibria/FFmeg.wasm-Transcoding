@@ -221,39 +221,39 @@ const transcodeFileToMediaSource = async (file) => {
                 await ffmpeg.exec([
                     '-nostats',
                     '-loglevel', 'error',
-                    '-i', inputFile,      // Input video file
-                    '-an',                // Disable audio output in the initial transcoding step
+                    '-i', inputFile,     
+                    '-an',                
                     '-movflags', 'faststart+frag_every_frame+empty_moov+default_base_moof',
                     '-ss', `${job.chunkStart}`,
                     '-t', `${job.chunkDuration}`,
                     '-preset', 'ultrafast',
-                    '-c:v', 'libx264',    // Set video codec to H.264
-                    '-crf', '23',         // Constant Rate Factor for video quality
-                    'temp_video.mp4',     // Temporary video file without audio
+                    '-c:v', 'libx264',    
+                    '-crf', '23',         
+                    'temp_video.mp4',     
                 ]);
                 
                 await ffmpeg.exec([
                     '-nostats',
                     '-loglevel', 'error',
-                    '-i', inputFile,      // Input video file again for extracting audio
-                    '-vn',                // Disable video output to extract only audio
+                    '-i', inputFile,      
+                    '-vn',                
                     '-ss', `${job.chunkStart}`,
                     '-t', `${job.chunkDuration}`,
-                    '-c:a', 'aac',        // Set audio codec to AAC
-                    '-b:a', '192k',       // Set audio bitrate
-                    'temp_audio.aac',     // Temporary audio file
+                    '-c:a', 'aac',        
+                    '-b:a', '192k',      
+                    'temp_audio.aac',    
                 ]);
                 
                 await ffmpeg.exec([
                     '-nostats',
                     '-loglevel', 'error',
-                    '-i', 'temp_video.mp4',  // Input temporary video file
-                    '-i', 'temp_audio.aac',  // Input temporary audio file
-                    '-c:v', 'copy',          // Copy the video stream without re-encoding
-                    '-c:a', 'aac',           // Set audio codec to AAC
-                    '-b:a', '192k',          // Set audio bitrate
+                    '-i', 'temp_video.mp4',  
+                    '-i', 'temp_audio.aac',  
+                    '-c:v', 'copy',          
+                    '-c:a', 'aac',          
+                    '-b:a', '192k',     
                     '-movflags', 'faststart+frag_every_frame+empty_moov+default_base_moof',
-                    outputFile,            // Final output file with both video and audio
+                    outputFile,            
                 ]);
                 try {
                     job.outputData = await ffmpeg.readFile(outputFile);
