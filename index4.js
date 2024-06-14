@@ -1,6 +1,7 @@
 "use strict";
 
-
+let currentVideoTime = 0;
+let saveCurrentTime = true;
 var ffmpegCount = 5;
 var chunkDurationSize = 4;
 var useMultiThreadIfAvailable = true;
@@ -225,11 +226,12 @@ const transcodeFileToMediaSource = async (file) => {
                 //await new Promise((r) => setTimeout(r, 1000));
                 let outputFile = `/output.${job.id}.mp4`;
                 
-                let temp_video= `temp_video_${job.id}.mp4`;
-                let temp_audio= `temp_video_${job.id}.aac`
+                let temp_video= `input/temp_video_${job.id}.mp4`;
+                let temp_audio= `input/temp_video_${job.id}.aac`
               
                 
                 if(hasAudio){
+                    console.log(" audio.............................")
                     await ffmpeg.exec([
                         '-nostats',
                         '-loglevel', 'error',
@@ -268,6 +270,7 @@ const transcodeFileToMediaSource = async (file) => {
                     ]);
                 }
                else{
+                console.log("without audio................................")
                 await ffmpeg.exec([
                     '-nostats',                           // Suppresses the printing of encoding statistics to speed up processing.
                     '-loglevel', 'error',                 // Only log errors to reduce console clutter.
@@ -294,10 +297,12 @@ const transcodeFileToMediaSource = async (file) => {
                 if (job.oncomplete) job.oncomplete();
                 try {
                     
-                    if(hasAudio){
-                        await ffmpeg.deleteFile(temp_video);
-                        await ffmpeg.deleteFile(temp_audio);
-                    }
+                    // if(hasAudio){
+                    //     console.log("skdsakdsak................................temp-video")
+                    //     await ffmpeg.deleteFile(temp_video);
+                    //     await ffmpeg.deleteFile(temp_audio);
+                    // }
+                    console.log("output file................................")
                     await ffmpeg.deleteFile(outputFile);
                 } catch {
                     console.log('Error deleting output video');
@@ -325,4 +330,21 @@ addEventListener("load", async (event) => {
     logDiv = document.querySelector('#log-div');
     videoEl = document.querySelector('#video-result');
     console.log('window loaded');
+
+
+// videoEl.addEventListener('seeked', e => {
+//   console.log('seeked (started at............. ' + currentVideoTime + ')', e.target.currentTime);
+//   saveCurrentTime = true;
+// });
+
+// videoEl.addEventListener('seeking', e => {
+//   console.log('seeking................', e.target.currentTime);
+//   saveCurrentTime = false;
+// });
+
+// videoEl.addEventListener('timeupdate', e => {
+//   console.log('timeupdate....................', e.target.currentTime);
+//   if(saveCurrentTime)
+//     currentVideoTime = e.target.currentTime;
+// });
 });
