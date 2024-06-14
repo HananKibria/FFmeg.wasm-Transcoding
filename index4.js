@@ -1,8 +1,8 @@
 "use strict";
 
 
-var ffmpegCount = 2;
-var chunkDurationSize = 5;
+var ffmpegCount = 5;
+var chunkDurationSize = 4;
 var useMultiThreadIfAvailable = true;
 var useWorkerFSIfAvailable = true;
 var ffmpegs = [];
@@ -113,7 +113,8 @@ const transcodeFileToMediaSource = async (file) => {
     }));
     var duration = await getDuration(inputFile);
     if (duration > 0) {
-        var initialChunk = null;
+        let hasAudio= true
+        var initialChunk=null;
         if (ffmpegs.length > 0) {
             const tempOutput = 'temp.mp4';
             await ffmpegs[0].exec([
@@ -133,12 +134,16 @@ const transcodeFileToMediaSource = async (file) => {
             const codecs = muxjs.mp4.probe.tracks(new Uint8Array(initialChunk))
                 .map(t => t.codec)
                 .join(",");
-            var mimeCodec = `video/mp4; codecs="${codecs}"`;
-            console.log(mimeCodec)
-        } else {
-            var mimeCodec = 'video/mp4; codecs="avc1.64001f"';  // Fallback codec
+            if(codecs.includes(",")){
+                var mimeCodec = `video/mp4; codecs="avc1.64001f,mp4a.40.2"`;
+                console.log(mimeCodec)
+            } else {
+                mimeCodec =`video/mp4; codecs="avc1.42c028"`;
+                console.log(mimeCodec)
+                hasAudio=false
+            }
         }
-
+     //   const result = await ffmpegs[0].ffprobe(inputFile);
         const mediaSource = new MediaSource();
         var mediaSourceURL = '';
         var jobs = [];
@@ -158,6 +163,7 @@ const transcodeFileToMediaSource = async (file) => {
             if (mediaSource.readyState != 'open') {
                 return;
             }
+    
             URL.revokeObjectURL(mediaSourceURL);
             mediaSource.duration = duration;
             var sourceBuffer = mediaSource.addSourceBuffer(mimeCodec);
@@ -171,12 +177,12 @@ const transcodeFileToMediaSource = async (file) => {
                 var job = await getCompletedJob(ii++);
                 if (!job) {
                     mediaSource.endOfStream();
-                } else {
+                } else  if (!sourceBuffer.updating)  {
                     sourceBuffer.appendBuffer(job.outputData);
                 }
             });
             var job = await getCompletedJob(ii++);
-            sourceBuffer.appendBuffer(job.outputData);
+           job.outputData!=null && job.outputData && sourceBuffer.appendBuffer(job.outputData);
         }, { once: true });
         var index = 0;
         var durationLeft = duration;
@@ -217,72 +223,67 @@ const transcodeFileToMediaSource = async (file) => {
                 job.state = 'running';
                 console.log(`Segment start: ${job.id} ${job.chunkStart} ${job.chunkDuration}`);
                 //await new Promise((r) => setTimeout(r, 1000));
-                const outputFile = `/output.${job.id}.mp4`;
-
-                // await ffmpeg.exec([
-                //     '-nostats',
-                //     '-loglevel', 'error',
-                //     '-i', inputFile,                     // Input video file
-                //     '-map', '0:v',                       // Map the video stream
-                //     '-map', '0:a',                       // Map the audio stream
-                //     '-c:v', 'libx264',                   // Set video codec to H.264
-                //     '-preset', 'ultrafast',              // Fastest encoding preset
-                //     '-crf', '15',                        // Constant Rate Factor for video quality
-                //     '-c:a', 'aac',                       // Set audio codec to AAC
-                //     '-b:a', '192k',                      // Set audio bitrate
-                //     '-movflags', 'faststart+frag_every_frame+empty_moov+default_base_moof',
-                //     '-ss', `${job.chunkStart}`,          // Start time for the chunk
-                //     '-t', `${job.chunkDuration}`,        // Duration for the chunk
-                //     'temp_video.mp4',                    // Output temporary video file
-                //     'temp_audio.aac'                     // Output temporary audio file
-                // ]);
-                // await ffmpeg.exec([
-                //     '-nostats',
-                //     '-loglevel', 'error',
-                //     '-i', 'temp_video.mp4',              // Input temporary video file
-                //     '-i', 'temp_audio.aac',              // Input temporary audio file
-                //     '-c:v', 'copy',                      // Copy video stream without re-encoding
-                //     '-c:a', 'copy',                      // Copy audio stream without re-encoding
-                //     '-movflags', 'faststart+frag_every_frame+empty_moov+default_base_moof',
-                //     outputFile                       // Final output file
-                // ]);
-                await ffmpeg.exec([
-                    '-nostats',
-                    '-loglevel', 'error',
-                    '-i', inputFile,     
-                    '-an',                
-                    '-movflags', 'faststart+frag_every_frame+empty_moov+default_base_moof',
-                    '-ss', `${job.chunkStart}`,
-                    '-t', `${job.chunkDuration}`,
-                    '-preset', 'ultrafast',
-                    '-c:v', 'libx264',    
-                    '-crf', '12',         
-                    'temp_video.mp4',     
-                ]);
+                let outputFile = `/output.${job.id}.mp4`;
                 
-                await ffmpeg.exec([
-                    '-nostats',
-                    '-loglevel', 'error',
-                    '-i', inputFile,      
-                    '-vn',                
-                    '-ss', `${job.chunkStart}`,
-                    '-t', `${job.chunkDuration}`,
-                    '-c:a', 'aac',        
-                    '-b:a', '92k',      
-                    'temp_audio.aac',    
-                ]);
+                let temp_video= `temp_video_${job.id}.mp4`;
+                let temp_audio= `temp_video_${job.id}.aac`
+              
                 
+                if(hasAudio){
+                    await ffmpeg.exec([
+                        '-nostats',
+                        '-loglevel', 'error',
+                        '-i', inputFile,     
+                        '-an',                
+                        '-movflags', 'faststart+frag_every_frame+empty_moov+default_base_moof',
+                        '-ss', `${job.chunkStart}`,
+                        '-t', `${job.chunkDuration}`,
+                        '-preset', 'ultrafast',
+                        '-c:v', 'libx264',    
+                        '-crf', '23',         
+                        `temp_video_${job.id}.mp4`,     
+                    ]);
+                    await ffmpeg.exec([
+                        '-nostats',
+                        '-loglevel', 'error',
+                        '-i', inputFile,    
+                        '-map', '0:a', // Assuming '0:a' selects the first audio stream  
+                        '-vn',                
+                        '-ss', `${job.chunkStart}`,
+                        '-t', `${job.chunkDuration}`,
+                        '-c:a', 'aac',        
+                        '-b:a', '512k',      
+                        `temp_audio_${job.id}.aac`,    
+                    ]);
+                    await ffmpeg.exec([
+                        '-nostats',
+                        '-loglevel', 'error',
+                        '-i', `temp_video_${job.id}.mp4`,  
+                        '-i', `temp_audio_${job.id}.aac`,  
+                        '-c:v', 'copy',          
+                        '-c:a', 'aac',          
+                        '-b:a', '512k',     
+                        '-movflags', 'faststart+frag_every_frame+empty_moov+default_base_moof',
+                        outputFile,            
+                    ]);
+                }
+               else{
                 await ffmpeg.exec([
-                    '-nostats',
-                    '-loglevel', 'error',
-                    '-i', 'temp_video.mp4',  
-                    '-i', 'temp_audio.aac',  
-                    '-c:v', 'copy',          
-                    '-c:a', 'aac',          
-                    '-b:a', '192k',     
-                    '-movflags', 'faststart+frag_every_frame+empty_moov+default_base_moof',
-                    outputFile,            
+                    '-nostats',                           // Suppresses the printing of encoding statistics to speed up processing.
+                    '-loglevel', 'error',                 // Only log errors to reduce console clutter.
+                    '-i', inputFile,       
+                    '-map', '0:v',               // Specifies the input file.
+                    '-an',                                // Disables audio processing, suitable for video-only handling.
+                    '-movflags', 'faststart+frag_every_frame+empty_moov+default_base_moof', // Optimize for streaming by moving metadata to the beginning.
+                    '-ss', `${job.chunkStart}`,           // Start time offset for slicing, adjust according to job specifics.
+                    '-t', `${job.chunkDuration}`,         // Duration of the slice to be processed.
+                    '-preset', 'ultrafast',               // Encoder preset for faster processing.
+                    '-c:v', 'libx264',                    // Video codec to use.
+                    '-crf', '23',                         // CRF value, balancing quality and file size.
+                    outputFile,           // Output file with dynamic naming based on job ID.
                 ]);
+               }
+              
                 try {
                     job.outputData = await ffmpeg.readFile(outputFile);
                 } catch {
@@ -292,10 +293,16 @@ const transcodeFileToMediaSource = async (file) => {
                 console.log(`Segment done: ${job.id} ${job.chunkStart} ${job.chunkDuration}`);
                 if (job.oncomplete) job.oncomplete();
                 try {
+                    
+                    if(hasAudio){
+                        await ffmpeg.deleteFile(temp_video);
+                        await ffmpeg.deleteFile(temp_audio);
+                    }
                     await ffmpeg.deleteFile(outputFile);
                 } catch {
                     console.log('Error deleting output video');
                 }
+
             }
             ffmpeg.off('progress', onprogress);
             ffmpeg.off('log', onlog);
