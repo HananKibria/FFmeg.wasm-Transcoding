@@ -176,7 +176,7 @@ const transcodeFileToMediaSource = async (file) => {
                     return;
                 }
                 var job = await getCompletedJob(ii++);
-                if (!job) {
+                if (!job && !flagSeek) {
                     mediaSource.endOfStream();
                 } else  if (!sourceBuffer.updating)  {
                     sourceBuffer.appendBuffer(job.outputData);
@@ -201,9 +201,151 @@ const transcodeFileToMediaSource = async (file) => {
             chunkStart += chunkDuration;
             index++;
         }
+        // let currentSeek=chunkStart;
+        // let flagSeek=false;
+        let flagSeek=false;
         mediaSourceURL = URL.createObjectURL(mediaSource);
         videoEl.src = mediaSourceURL;
         var jobQueue = [];
+        let totalPromise;
+        videoEl.addEventListener('seeking', async (e) => {
+            console.log("sassddddddddddddd........................................seeked")
+            if(flagSeek===false){
+            let endSegmentStart=jobs[jobs.length-1].chunkStart;
+            let endSegmentEnd=jobs[jobs.length-1].chunkDuration;
+            let currentSeek=e.target.currentTime;
+            console.log("aaaaaaaaaaaaaaaaaaaaaaaaaaaa........................................seeked")
+            jobs=[];
+           chunkStart=currentSeek;
+           jobQueue=[];
+           var index = 0;
+           var durationLeft = duration;
+           while (chunkStart < duration) {
+                let chunkDuration = durationLeft > chunkDurationSize ? chunkDurationSize : durationLeft;
+                jobs.push({
+                    id: index,
+                    chunkStart: chunkStart,
+                    chunkDuration: chunkDuration,
+                    state: 'queued',    // queued, running, done
+                    outputData: null,
+                    oncomplete: null,
+                });
+                    chunkStart += chunkDuration;
+                    index++;
+                }
+            }
+            jobs.map((job) => jobQueue.push(job));
+            await Promise.all(ffmpegs.map(async (ffmpeg) => {
+                let job = null;
+                const onprogress = (ev) => {
+                    if (!job) return;
+                    job.progress = ev.progress;
+                    console.log(`Segment progress: ${job.id} ${job.progress}`);
+                };
+                const onlog = (ev) => {
+                    if (!job) return;
+                    logDiv.innerHTML = ev.message;
+                    console.log(`Segment log: ${job.id}`, ev.message);
+                };
+                ffmpeg.on('progress', onprogress);
+                ffmpeg.on('log', onlog);
+                console.log(flagSeek+"-----------------sssaas--------------");
+                while (jobQueue.length && !flagSeek)  {
+                    job = jobQueue.shift();
+                    job.state = 'running';
+                    console.log(`Segment start: ${job.id} ${job.chunkStart} ${job.chunkDuration}`);
+                    //await new Promise((r) => setTimeout(r, 1000));
+                    let outputFile = `/output.${job.id}.mp4`;
+                    
+                    let temp_video= `input/temp_video_${job.id}.mp4`;
+                    let temp_audio= `input/temp_video_${job.id}.aac`
+                  
+                    
+                    if(hasAudio){
+                        console.log(" audio.............................")
+                        await ffmpeg.exec([
+                            '-nostats',
+                            '-loglevel', 'error',
+                            '-i', inputFile,     
+                            '-an',                
+                            '-movflags', 'faststart+frag_every_frame+empty_moov+default_base_moof',
+                            '-ss', `${job.chunkStart}`,
+                            '-t', `${job.chunkDuration}`,
+                            '-preset', 'ultrafast',
+                            '-c:v', 'libx264',    
+                            '-crf', '23',         
+                            `temp_video_${job.id}.mp4`,     
+                        ]);
+                        await ffmpeg.exec([
+                            '-nostats',
+                            '-loglevel', 'error',
+                            '-i', inputFile,    
+                            '-map', '0:a', // Assuming '0:a' selects the first audio stream  
+                            '-vn',                
+                            '-ss', `${job.chunkStart}`,
+                            '-t', `${job.chunkDuration}`,
+                            '-c:a', 'aac',        
+                            '-b:a', '512k',      
+                            `temp_audio_${job.id}.aac`,    
+                        ]);
+                        await ffmpeg.exec([
+                            '-nostats',
+                            '-loglevel', 'error',
+                            '-i', `temp_video_${job.id}.mp4`,  
+                            '-i', `temp_audio_${job.id}.aac`,  
+                            '-c:v', 'copy',          
+                            '-c:a', 'aac',          
+                            '-b:a', '512k',     
+                            '-movflags', 'faststart+frag_every_frame+empty_moov+default_base_moof',
+                            outputFile,            
+                        ]);
+                    }
+                   else{
+                    console.log("without audio................................")
+                    await ffmpeg.exec([
+                        '-nostats',                           // Suppresses the printing of encoding statistics to speed up processing.
+                        '-loglevel', 'error',                 // Only log errors to reduce console clutter.
+                        '-i', inputFile,       
+                        '-map', '0:v',               // Specifies the input file.
+                        '-an',                                // Disables audio processing, suitable for video-only handling.
+                        '-movflags', 'faststart+frag_every_frame+empty_moov+default_base_moof', // Optimize for streaming by moving metadata to the beginning.
+                        '-ss', `${job.chunkStart}`,           // Start time offset for slicing, adjust according to job specifics.
+                        '-t', `${job.chunkDuration}`,         // Duration of the slice to be processed.
+                        '-preset', 'ultrafast',               // Encoder preset for faster processing.
+                        '-c:v', 'libx264',                    // Video codec to use.
+                        '-crf', '23',                         // CRF value, balancing quality and file size.
+                        outputFile,           // Output file with dynamic naming based on job ID.
+                    ]);
+                   }
+                  
+                    try {
+                        job.outputData = await ffmpeg.readFile(outputFile);
+                    } catch {
+                        console.log('Error reading output video');
+                    }
+                    job.state = 'done';
+                    console.log(`Segment done: ${job.id} ${job.chunkStart} ${job.chunkDuration}`);
+                    if (job.oncomplete) job.oncomplete();
+                    try {
+                        
+                        // if(hasAudio){
+                        //     console.log("skdsakdsak................................temp-video")
+                        //     await ffmpeg.deleteFile(temp_video);
+                        //     await ffmpeg.deleteFile(temp_audio);
+                        // }
+                        console.log("output file................................")
+                        await ffmpeg.deleteFile(outputFile);
+                    } catch {
+                        console.log('Error deleting output video');
+                    }
+    
+                }
+                ffmpeg.off('progress', onprogress);
+                ffmpeg.off('log', onlog);
+            }));
+        });
+       
+    
         jobs.map((job) => jobQueue.push(job));
         await Promise.all(ffmpegs.map(async (ffmpeg) => {
             let job = null;
@@ -219,7 +361,9 @@ const transcodeFileToMediaSource = async (file) => {
             };
             ffmpeg.on('progress', onprogress);
             ffmpeg.on('log', onlog);
-            while (jobQueue.length) {
+            console.log(flagSeek+"-----------------outside--------------");
+
+            while (jobQueue.length && !flagSeek) {
                 job = jobQueue.shift();
                 job.state = 'running';
                 console.log(`Segment start: ${job.id} ${job.chunkStart} ${job.chunkDuration}`);
@@ -332,10 +476,9 @@ addEventListener("load", async (event) => {
     console.log('window loaded');
 
 
-// videoEl.addEventListener('seeked', e => {
-//   console.log('seeked (started at............. ' + currentVideoTime + ')', e.target.currentTime);
-//   saveCurrentTime = true;
-// });
+videoEl.addEventListener('seeked', e => {
+  
+});
 
 // videoEl.addEventListener('seeking', e => {
 //   console.log('seeking................', e.target.currentTime);
