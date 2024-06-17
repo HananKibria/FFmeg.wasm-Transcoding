@@ -2,8 +2,8 @@
 
 let currentVideoTime = 0;
 let saveCurrentTime = true;
-var ffmpegCount = 5;
-var chunkDurationSize = 4;
+var ffmpegCount = 4;
+var chunkDurationSize = 2;
 var useMultiThreadIfAvailable = true;
 var useWorkerFSIfAvailable = true;
 var ffmpegs = [];
@@ -105,7 +105,7 @@ const transcodeFileToMediaSource = async (file) => {
     const controller=new AbortController();
     const signal=controller.signal
     var index2=0;
-    attachVideoDebug(videoEl);
+    // attachVideoDebug(videoEl);
     // mount the input file in each ffmpeg instance
     // (custom ffmpeg build with WORKERFS enabled)
     var useWorkerFS = ffmpegs[0].mount && ffmpegs[0].unmount && useWorkerFSIfAvailable;
@@ -177,7 +177,7 @@ const transcodeFileToMediaSource = async (file) => {
             sourceBuffer = mediaSource.addSourceBuffer(mimeCodec);
             sourceBuffer.mode = 'segments';
             var ii = 0;
-            attachBufferDebug(sourceBuffer);
+           // attachBufferDebug(sourceBuffer);
             sourceBuffer.addEventListener("updateend", async () => {
                 console.log('updateend', mediaSource.readyState); // ended
                 if (mediaSource.readyState != 'open' ) {
@@ -229,7 +229,7 @@ const transcodeFileToMediaSource = async (file) => {
         var flagSeek2=false;
         var flagSeek3=false;
         videoEl.addEventListener('seeking', async (e) => {
-            if(sourceBuffer.buffered.end(sourceBuffer.buffered.length-1)>e.target.currentTime){
+            if(sourceBuffer.buffered.start(0)<e.target.currentTime && sourceBuffer.buffered.end(sourceBuffer.buffered.length-1)>e.target.currentTime){
                 return;
             }
             e.preventDefault();
@@ -237,6 +237,10 @@ const transcodeFileToMediaSource = async (file) => {
             flagSeek2=true;
             flagSeek3=true;
             currentSeek=Math.trunc(e.target.currentTime);
+            if(currentSeek<sourceBuffer.buffered.start(0)){
+                jobQueue=[];
+                jobs.map((job) => jobQueue.push(job));
+            }
             console.log(x,".................")
             for(let i=0;i<x;i++){
                 try{
@@ -247,7 +251,9 @@ const transcodeFileToMediaSource = async (file) => {
                 }
             }
             controller.abort();
-            sourceBuffer.abort();
+            if(mediaSource.readyState==='open'){
+                sourceBuffer.abort();
+            }
          
             //videoEl.dispatchEvent(new Event('seeked'));
             let g=jobQueue[0];
@@ -257,6 +263,7 @@ const transcodeFileToMediaSource = async (file) => {
                 console.log(jobQueue.length,"..............ddddddddddd");
                 console.log(jobQueue[0])
                 index2=jobQueue[0].id;
+                x=jobQueue[0].id
                 g=jobQueue[0]
                 g.chunkDuration=g.chunkDuration + g.chunkStart-currentSeek
                 g.chunkStart=currentSeek;
@@ -264,18 +271,19 @@ const transcodeFileToMediaSource = async (file) => {
 
         });
 
-        jobs.map((job) => jobQueue.push(job));
 
         var x=0;
+        jobs.map((job) => jobQueue.push(job));
+
         while (x<jobs.length)  {
-            if(x && x%2==0){
-                await delay(4000);
+            if(x && x%3==0  && !flagSeek){
+                await delay(6000);
             }
-            console.log(jobQueue[0]);
-            let promiseRejects=[];
             if(flagSeek){
                 flagSeek=false;
             }
+            console.log(jobQueue[0]);
+            let promiseRejects=[];
             let Promises=ffmpegs.map(async (ffmpeg) => {
                 
                 return new Promise(async(resolve,reject)=>{
@@ -342,9 +350,9 @@ const transcodeFileToMediaSource = async (file) => {
                     //     reject();
                     // }
                            
-                if(job.chunkStart<currentSeek){
-                    reject();
-                }
+                // if(job.chunkStart<currentSeek){
+                //     reject();
+                // }
                     await ffmpeg.exec([
                         '-nostats',
                         '-loglevel', 'error',
@@ -445,34 +453,34 @@ addEventListener("load", async (event) => {
 
 });
 
-function logVideoEvent(e) {
-    var debugTable = document.getElementById("videoDebug");
-    if (!debugTable) {
-        debugTable = document.createElement("table");
-        debugTable.id = "videoDebug";
-        debugTable.innerHTML = '<tr><td>time</td><td>target</td><td>name</td><td>ct</td><td>ns</td><td>rs</td><td>dur</td><td>error</td><td>bc</td><td>last buffer</td></tr>';
-        document.body.appendChild(debugTable);
-    }
-    var tr = document.createElement("tr");
-    if (debugTable.children.length > 1) {
-        debugTable.insertBefore(tr, debugTable.children[1]);
-    } else {
-        debugTable.appendChild(tr);
-    }
-    var date = new Date();
-    tr.innerHTML = '<td>' + (date.getHours() + ":" + date.getMinutes() + ":<b>" + date.getSeconds() + "." + date.getMilliseconds()) + '</b></td><td>' + Object.getPrototypeOf(e.target).constructor.name + '</td><th>' + e.type + '</th><td>' + videoEl.currentTime + '</td><td>' + videoEl.networkState + '</td><td>' + videoEl.readyState + '</td><td>' + videoEl.duration + '</td><td>' + (videoEl.error ? videoEl.error.code : '-') + '</td><td>' + videoEl.buffered.length + '</td><td>' + (videoEl.buffered.length ? (videoEl.buffered.start(videoEl.buffered.length - 1) + " - " + videoEl.buffered.end(videoEl.buffered.length - 1)) : 0) + '</td>';
-}
+// function logVideoEvent(e) {
+//     var debugTable = document.getElementById("videoDebug");
+//     if (!debugTable) {
+//         debugTable = document.createElement("table");
+//         debugTable.id = "videoDebug";
+//         debugTable.innerHTML = '<tr><td>time</td><td>target</td><td>name</td><td>ct</td><td>ns</td><td>rs</td><td>dur</td><td>error</td><td>bc</td><td>last buffer</td></tr>';
+//         document.body.appendChild(debugTable);
+//     }
+//     var tr = document.createElement("tr");
+//     if (debugTable.children.length > 1) {
+//         debugTable.insertBefore(tr, debugTable.children[1]);
+//     } else {
+//         debugTable.appendChild(tr);
+//     }
+//     var date = new Date();
+//     tr.innerHTML = '<td>' + (date.getHours() + ":" + date.getMinutes() + ":<b>" + date.getSeconds() + "." + date.getMilliseconds()) + '</b></td><td>' + Object.getPrototypeOf(e.target).constructor.name + '</td><th>' + e.type + '</th><td>' + videoEl.currentTime + '</td><td>' + videoEl.networkState + '</td><td>' + videoEl.readyState + '</td><td>' + videoEl.duration + '</td><td>' + (videoEl.error ? videoEl.error.code : '-') + '</td><td>' + videoEl.buffered.length + '</td><td>' + (videoEl.buffered.length ? (videoEl.buffered.start(videoEl.buffered.length - 1) + " - " + videoEl.buffered.end(videoEl.buffered.length - 1)) : 0) + '</td>';
+// }
 
-function attachVideoDebug(video) {
-    var events = ["loadstart", "progress", "suspend", "abort", "error", "emptied", "stalled", "loadedmetadata", "loadeddata", "canplay", "canplaythrough", "playing", "waiting", "seeking", "seeked", "ended", "durationchange", "timeupdate", "play", "pause", "ratechange", "resize", "volumechange"];
-    for (var i=0; i<events.length; i++) {
-        video.addEventListener(events[i], logVideoEvent);
-    }
-}
+// function attachVideoDebug(video) {
+//     var events = ["loadstart", "progress", "suspend", "abort", "error", "emptied", "stalled", "loadedmetadata", "loadeddata", "canplay", "canplaythrough", "playing", "waiting", "seeking", "seeked", "ended", "durationchange", "timeupdate", "play", "pause", "ratechange", "resize", "volumechange"];
+//     for (var i=0; i<events.length; i++) {
+//         video.addEventListener(events[i], logVideoEvent);
+//     }
+// }
 
-function attachBufferDebug(sourceBuffer) {
-    var events = ["updatestart", "update", "updateend", "error", "abort" ];
-    for (var i=0; i<events.length; i++) {
-        sourceBuffer.addEventListener(events[i], logVideoEvent);
-    }
-}
+// function attachBufferDebug(sourceBuffer) {
+//     var events = ["updatestart", "update", "updateend", "error", "abort" ];
+//     for (var i=0; i<events.length; i++) {
+//         sourceBuffer.addEventListener(events[i], logVideoEvent);
+//     }
+// }
