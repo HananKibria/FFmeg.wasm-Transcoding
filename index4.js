@@ -3,7 +3,7 @@
 let currentVideoTime = 0;
 let saveCurrentTime = true;
 var ffmpegCount = 4;
-var chunkDurationSize = 2;
+var chunkDurationSize = 1;
 var useMultiThreadIfAvailable = true;
 var useWorkerFSIfAvailable = true;
 var ffmpegs = [];
@@ -175,7 +175,7 @@ const transcodeFileToMediaSource = async (file) => {
             URL.revokeObjectURL(mediaSourceURL);
             mediaSource.duration = duration;
             sourceBuffer = mediaSource.addSourceBuffer(mimeCodec);
-            sourceBuffer.mode = 'segments';
+            sourceBuffer.mode = 'sequence';
             var ii = 0;
            // attachBufferDebug(sourceBuffer);
             sourceBuffer.addEventListener("updateend", async () => {
@@ -215,6 +215,7 @@ const transcodeFileToMediaSource = async (file) => {
                 promiseReject:undefined
             });
             chunkStart += chunkDuration;
+            durationLeft=duration-chunkDuration+chunkDurationSize
             index++;
         }
         var currentSeek=0;
@@ -228,7 +229,12 @@ const transcodeFileToMediaSource = async (file) => {
         var flagSeek=false;
         var flagSeek2=false;
         var flagSeek3=false;
+        let flagSeek6=true;
         videoEl.addEventListener('seeking', async (e) => {
+            // if(e.target.currentTime%1!=0){
+            //     videoEl.currentTime=Math.trunc(e.target.currentTime);
+            //     return;
+            // }
             if(sourceBuffer.buffered.start(0)<e.target.currentTime && sourceBuffer.buffered.end(sourceBuffer.buffered.length-1)>e.target.currentTime){
                 return;
             }
@@ -236,30 +242,38 @@ const transcodeFileToMediaSource = async (file) => {
             flagSeek=true;
             flagSeek2=true;
             flagSeek3=true;
-            currentSeek=Math.trunc(e.target.currentTime);
+            currentSeek=Math.trunc(e.target.currentTime)-1;
+            if(currentSeek<0){
+                currentSeek=0;
+            }
             if(currentSeek<sourceBuffer.buffered.start(0)){
                 jobQueue=[];
                 jobs.map((job) => jobQueue.push(job));
             }
             console.log(x,".................")
-            for(let i=0;i<x;i++){
+            flagSeek6=false;
+
+            for(let i=0;i<currentSeek;i++){
                 try{
-                    jobs[i].promiseReject();
+                    await jobs[i].promiseReject();
                 }
                 catch(err){
                     console.log(err);
                 }
             }
+            flagSeek6=true;
             controller.abort();
             if(mediaSource.readyState==='open'){
                 sourceBuffer.abort();
             }
-         
+            console.log(currentSeek);
             //videoEl.dispatchEvent(new Event('seeked'));
+           // jobs.map((job) => jobQueue.push(job));
             let g=jobQueue[0];
-                while(g.chunkStart<currentSeek){
+                while(g.chunkStart<currentSeek-1){
                     g=jobQueue.shift();
                 }
+
                 console.log(jobQueue.length,"..............ddddddddddd");
                 console.log(jobQueue[0])
                 index2=jobQueue[0].id;
@@ -267,28 +281,29 @@ const transcodeFileToMediaSource = async (file) => {
                 g=jobQueue[0]
                 g.chunkDuration=g.chunkDuration + g.chunkStart-currentSeek
                 g.chunkStart=currentSeek;
+                
             sourceBuffer.remove(sourceBuffer.buffered.start(0),sourceBuffer.buffered.end(sourceBuffer.buffered.length-1))
-
+           
         });
 
 
         var x=0;
         jobs.map((job) => jobQueue.push(job));
-
+        
         while (x<jobs.length)  {
-            if(x && x%3==0  && !flagSeek){
-                await delay(6000);
-            }
-            if(flagSeek){
-                flagSeek=false;
-            }
-            console.log(jobQueue[0]);
+            // if(x && x%3==0  && !flagSeek){
+            //     await delay(6000);
+            // }
+           // console.log(jobQueue[0]);
+
+            if(flagSeek6){
+
             let promiseRejects=[];
             let Promises=ffmpegs.map(async (ffmpeg) => {
                 
                 return new Promise(async(resolve,reject)=>{
                 let job = null;
-                promiseRejects.push(reject)
+                promiseRejects.push(resolve)
                 const onprogress = (ev) => {
                     if (!job) return;
                     job.progress = ev.progress;
@@ -432,6 +447,7 @@ const transcodeFileToMediaSource = async (file) => {
             }
             await Promise.all(Promises);
         }  
+        }
     }
     await Promise.all(ffmpegs.map(async (ffmpeg) => {
         if (useWorkerFS){
