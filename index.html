@@ -1,4 +1,5 @@
 <script src="coi-serviceworker.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/idb@8/build/umd.js"></script>
 <script src="packages/mux.min.js"></script>
 <script src="packages/ffmpeg.js"></script>
 
@@ -8,7 +9,16 @@
     <video muted="muted" autoplay id="video-result" controls></video><br />
     <button disabled id="load-button">Load ffmpeg-core</button><br />
     <!-- <button style="display: none;" disabled id="select-input-button">Transcode local file</button> -->
-    <input disabled type="file" id="local-file" accept=".mp4,.m4v,.webm,.avi,.mkv,.mov,.wmv" /><br />
+    <!-- //<input disabled type="file" id="local-file" accept=".mp4,.m4v,.webm,.avi,.mkv,.mov,.wmv" /><br /> -->
+    <button id="local-file">play</button>
     <p id="log-div"></p>
+
+    <form onsubmit="handleSubmit(event)">
+        <label for="url">URL:</label>
+        <input type="text" id="url" name="url"><br><br>
+        <label for="extension">Extension:</label>
+        <input type="text" id="extension" name="extension"><br><br>
+        <button type="submit">Submit</button>
+    </form>
 </body>
 </html>

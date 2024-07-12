@@ -16,6 +16,9 @@ const baseURLCore = 'ffmpeg-wasm/core';
 const baseURLCoreMT = 'ffmpeg-wasm/core-mt';
 const workerBFSLoaderURL = 'worker.loader.js';
 const baseURL = 'packages';
+var db
+let fileUrl=null;
+let ext=null
 
 const toBlobURL = async (url, mimeType) => {
     const resp = await fetch(url);
@@ -23,7 +26,67 @@ const toBlobURL = async (url, mimeType) => {
     const blob = new Blob([body], { type: mimeType });
     return URL.createObjectURL(blob);
 };
+async function addObject(db, obj) {
+    const tx = db.transaction('objects', 'readwrite')
+    const store = tx.objectStore('objects')
+    let data = await store.get(obj.id)
+    if (!data) {
+      await store.add(obj)
+      await tx.done
+      //consoel.log('Object added:', obj);
+    }
+  }
+  async function getObject(db, id) {
+    const tx = db.transaction('objects', 'readonly')
+    const store = tx.objectStore('objects')
+    const data = await store.get(id)
+    //consoel.log('Object retrieved:', data);
+    return data
+  }
+  async function updateObject(db, id, key, update) {
+    const tx = db.transaction('objects', 'readwrite')
+    const store = tx.objectStore('objects')
 
+    try {
+      let data = await store.get(id)
+      // Update the data with new values
+      data[key] = update
+      data['state'] = 'completed'
+      await store.put(data)
+      await tx.done
+      //consoel.log("Object updated successfully");
+    } catch (error) {
+      console.error('Error updating object: ', error)
+    }
+  }
+  async function getFileSize(url) {
+    const response = await fetch(url, { method: 'HEAD' });
+    const contentLength = response.headers.get('Content-Length');
+    if (contentLength) {
+        return parseInt(contentLength, 10);
+    } else {
+        throw new Error('Content-Length header is missing');
+    }
+}
+function toFixed(num, fixed) {
+    num = String(num)
+    if (num.indexOf('.') !== -1) {
+      var numarr = num.split('.')
+      if (numarr.length == 1) {
+        return Number(num)
+      } else {
+        return Number(
+          numarr[0] + '.' + numarr[1].charAt(0) + numarr[1].charAt(1)
+        )
+      }
+    } else {
+      return Number(num)
+    }
+  }
+function durationToSeconds(duration) {
+    const [hours, minutes, seconds] = duration.split(':')
+    return +hours * 3600 + +minutes * 60 + +seconds
+  }
 const load = async () => {
     loadBtn.setAttribute('disabled', true);
     var loadConfig = null;
@@ -54,6 +117,14 @@ const load = async () => {
     }
     try{
         await Promise.all(tasks);
+        db = await idb.openDB('MyDatabase', 1, {
+            upgrade(db) {
+              // Create an object store if it doesn't exist
+              if (!db.objectStoreNames.contains('objects')) {
+                db.createObjectStore('objects', { keyPath: 'id' })
+              }
+            },
+          })
     }
     catch(err){
         console.log(err);
@@ -79,46 +150,116 @@ const getMetadata = (inputFile) => {
     });
 };
 
-const getDuration = async (inputFile) => {
-    var metadata = await getMetadata(inputFile);
+async function fetchFile(url, start, end) {
+    const response = await fetch(url, {
+        headers: {
+            'Range': `bytes=${start}-${end}`
+        }
+    });
+    return await response.arrayBuffer();
+}
+const getDuration = async inputFile => {
+    var metadata = await getMetadata(inputFile)
     var patt = /Duration:\s*([0-9]{2}):([0-9]{2}):([0-9]{2}.[0-9]{0,2})/gm
-    var m = patt.exec(metadata);
-    return !m ? 0 : (m[1] * 3600) + (m[2] * 60) + (m[3] * 1);
-};
+    var m = metadata.match(/Duration: (\d+:\d+:\d+\.\d+)/)
+    console.log(metadata)
+    const durationRegex = /Duration: (\d{2}:\d{2}:\d{2}\.\d{2})/
+
+    // Extract duration using regular expression
+    const match =m!=null && m.length && m[0].match(durationRegex)
+    const endTimeMatch = metadata.match(/time=(\d+:\d+:\d+\.\d+)/g)
+    const endTimeStr = endTimeMatch
+      ? endTimeMatch[endTimeMatch.length - 1].split('=')[1]
+      : '00:00:00.00'
+      const videoBitrateRegex = /Stream #0:0.*Video:.*?,.*?,.*?,.*?,.*?(\d+ kb\/s)/;
+      const audioBitrateRegex = /Stream #0:1.*Audio:.*?,.*?,.*?,.*?,.*?(\d+ kb\/s)/;
+      const bitrateRegex = /bitrate:\s(\d+)\s\w{2}\/s/i;
+      const match2 = metadata.match(bitrateRegex);
+      console.log(match2);
+      let bitrate
+      if (match2) {
+           bitrate = parseInt(match[1], 10);
+          console.log(`Bitrate: ${bitrate}`);
+      } else {
+          console.log('Bitrate not found.');
+      }
+      // Extract video bitrate
+      const videoBitrateMatch = metadata.match(videoBitrateRegex);
+      const videoBitrate = videoBitrateMatch ? parseInt(videoBitrateMatch[1], 10) : 0;
+      console.log("video",videoBitrateMatch)
+
+      // Extract audio bitrate
+      const audioBitrateMatch = metadata.match(audioBitrateRegex);
+      const audioBitrate = audioBitrateMatch ? parseInt(audioBitrateMatch[1], 10) : 0;
+      const videoBitrateBytesPerSec = videoBitrate * 1000; // 1 kb/s = 125 bytes/s
+      const audioBitrateBytesPerSec = audioBitrate * 1000; // 1 kb/s = 125 bytes/s
+      let totalBytes=videoBitrateBytesPerSec+audioBitrateBytesPerSec;  
+    // Convert end time to seconds
+    console.log("audio",audioBitrateMatch)
+
+    const endTimeParts = endTimeStr.split(':')
+    const endTime =
+      parseFloat(endTimeParts[0]) * 3600 +
+      parseFloat(endTimeParts[1]) * 60 +
+      parseFloat(endTimeParts[2])
+
+    // Check if match is found and convert to seconds
+    if (match && match[1]) {
+      const duration = match[1]
+      const durationInSeconds = durationToSeconds(duration)
+      //consoel.log('Duration in seconds:', durationInSeconds)
+      return [toFixed(durationInSeconds, 2), endTime,totalBytes,bitrate]
+    } else {
+      //consoel.log('Duration not found')
+    }
+  }
 
 const transcodeLocalFileInputToMediaSource = async () => {
-    let files = localFileInput.files;
-    let file = files.length ? files[0] : null;
-    if (!file) return;
+    // let files = localFileInput.files;
+    // let file = files.length ? files[0] : null;
+    // if (!file) return;
     localFileInput.setAttribute('disabled', true);
-    await transcodeFileToMediaSource(file);
+    await transcodeFileToMediaSource();
     localFileInput.removeAttribute('disabled');
 };
 const delay = (delayInms) => {
     return new Promise(resolve => setTimeout(resolve, delayInms));
   };
-const transcodeFileToMediaSource = async (file) => {
-    console.log('file', file);
+const transcodeFileToMediaSource = async () => {
+   // console.log('file', file);
     const inputDir = 'input';
-    const inputFile = `${inputDir}/${file.name}`;
+    const inputFile = `file.${ext}`;
     console.log('inputFile', inputFile);
     const controller=new AbortController();
     const signal=controller.signal
     var index2=0;
-    //attachVideoDebug(videoEl);
+    attachVideoDebug(videoEl);
     // mount the input file in each ffmpeg instance
     // (custom ffmpeg build with WORKERFS enabled)
-    var useWorkerFS = ffmpegs[0].mount && ffmpegs[0].unmount && useWorkerFSIfAvailable;
-    await Promise.all(ffmpegs.map(async (ffmpeg) => {
-        await ffmpeg.createDir(inputDir);
-        if (useWorkerFS) {
-            console.log("dsdjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjj........................................")
-            await ffmpeg.mount('WORKERFS', { files: [file] }, inputDir);
-        } else {
-            await ffmpeg.writeFile(inputFile, new Uint8Array(await file.arrayBuffer()))
-        }
-    }));
-    var duration = await getDuration(inputFile);
+    // var useWorkerFS = ffmpegs[0].mount && ffmpegs[0].unmount && useWorkerFSIfAvailable;
+    // await Promise.all(ffmpegs.map(async (ffmpeg) => {
+    //     await ffmpeg.createDir(inputDir);
+    //     if (useWorkerFS) {
+    //         console.log("dsdjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjj........................................")
+    //         await ffmpeg.mount('WORKERFS', { files: [file] }, inputDir);
+    //     } else {
+    //         await ffmpeg.writeFile(inputFile, new Uint8Array(await file.arrayBuffer()))
+    //     }
+    // }));
+    let filesize=await getFileSize(fileUrl);
+    let result = new SharedArrayBuffer(filesize +100000)
+     
+    const typedArray = new Uint8Array(result)
+    //const fileBuffer = new Uint8Array(await fetchFile(fileUrl,0, 100000)); // Example range, modify as needed
+    //console.log(fileBuffer)
+    await ffmpegs[0].writeFile(inputFile, new Uint8Array(await fetchFile(fileUrl,0, 200000)) );
+    var [duration,durationChunk,bytes,bitrate] = await getDuration(inputFile);
+    console.log("bitrate",bitrate)
+    let block_size=Math.trunc(filesize/duration) *2
+    let size=((duration * block_size)/filesize)
+    console.log(size)
+
+    console.log(duration)
     if (duration > 0) {
         let hasAudio= true
         var initialChunk=null;
@@ -145,7 +286,8 @@ const transcodeFileToMediaSource = async (file) => {
                 var mimeCodec = `video/mp4; codecs="avc1.64001f,mp4a.40.2"`;
                 console.log(mimeCodec)
             } else {
-                mimeCodec =`video/mp4; codecs="avc1.42c028"`;
+                mimeCodec = `video/mp4; codecs="avc1.64001f,mp4a.40.2"`;
+              //  mimeCodec =`video/mp4; codecs="avc1.42c028"`;
                 console.log(mimeCodec)
                 hasAudio=false
             }
@@ -154,22 +296,28 @@ const transcodeFileToMediaSource = async (file) => {
         const mediaSource = new MediaSource();
         var mediaSourceURL = '';
         var jobs = [];
-        const getCompletedJob = (i) => {
-            if (i >= jobs.length) return null;
-            var job = jobs[i];
-            if (job.state != 'done') {
-                return new Promise((resolve) => {
-                    job.oncomplete = () => resolve(job);
-                })
+        const getCompletedJob = async i => {
+            if (i >= jobs.length) return null
+            var job = jobs[i]
+            if (job.state != 'completed') {
+              return new Promise(resolve => {
+                job.oncomplete = async () => {
+                   let returnJob=await getObject(db,job.id);
+                    //console.log("ssddsd",returnJob);
+                  return resolve(returnJob)
+                }
+              })
             } else {
-                return Promise.resolve(job);
+                let returnJob=await getObject(db,job.id);
+              return Promise.resolve(returnJob)
             }
-        };
+          }
         var sourceBuffer;
         let isMouseDown=false;
         var ii = 0;
         var seekII=false;
         let seeking=false;
+        let flagRemoval=false;
         videoEl.addEventListener('play',(e)=>{
             // e.preventDefault();
              if(seeking){
@@ -189,20 +337,21 @@ const transcodeFileToMediaSource = async (file) => {
             URL.revokeObjectURL(mediaSourceURL);
             mediaSource.duration = duration;
             sourceBuffer = mediaSource.addSourceBuffer(mimeCodec);
-            sourceBuffer.mode = 'sequence';
-            setInterval(()=>{
-                if(sourceBuffer.buffered.length>0){
-                    let diff= currentTime-currentSeek
-                    if(currentTime>10 && sourceBuffer.buffered.start(0)-sourceBuffer.buffered.end(sourceBuffer.buffered.length-1)>10){
-                        
-                        sourceBuffer.remove(sourceBuffer.buffered.start(0),currentTime-4)
-                    }
-                }
-            },7000)
+            sourceBuffer.mode = 'segments';
+            // setInterval(()=>{
+            //     if(sourceBuffer.buffered.length>0){
+            //         let diff= currentTime-currentSeek
+            //         if(currentTime>4 && (sourceBuffer.buffered.end(0)-sourceBuffer.buffered.start(0))>6 && (currentTime-sourceBuffer.buffered.start(0))>4){
+            //             if(!sourceBuffer.updating){
+            //                 sourceBuffer.remove(sourceBuffer.buffered.start(0),currentTime-2)
+            //             }
+            //         }
+            //     }
+            // },1000)
            videoEl.addEventListener("timeupdate",(e)=>{
                 currentTime=Math.trunc(e.target.currentTime)
            },)
-           // attachBufferDebug(sourceBuffer);
+            attachBufferDebug(sourceBuffer);
             sourceBuffer.addEventListener("updateend", async () => {
                 console.log('updateend', mediaSource.readyState); // ended
                 if (mediaSource.readyState != 'open' ) {
@@ -219,16 +368,25 @@ const transcodeFileToMediaSource = async (file) => {
                 if(!flagSeek2 && !seekII){
                     var job = await getCompletedJob(ii++);
                 }
-                if (!job && !flagSeek2 && !seekII) {
+                if (!job && !flagSeek2 && !seekII ) {
                     mediaSource.endOfStream();
-                } else  if (!sourceBuffer.updating && !flagSeek2 &&!seekII)  {
+                } else  if (!sourceBuffer.updating && !flagSeek2 &&!seekII )  {
                     sourceBuffer.timestampOffset=job.chunkStart;
-                    if(sourceBuffer.buffered.length>0){
-                        console.log(sourceBuffer.buffered.start(0));
-                        console.log(sourceBuffer.buffered.end(sourceBuffer.buffered.length-1))
+
+                    if(sourceBuffer.buffered.length>0 && currentTime>4 && (sourceBuffer.buffered.end(0)-sourceBuffer.buffered.start(0))>6 && (currentTime-sourceBuffer.buffered.start(0))>4){
+                        console.log("start",sourceBuffer.buffered.start(0),currentTime)
+                        sourceBuffer.remove(sourceBuffer.buffered.start(0),currentTime-2)
+                        ii=ii-1
+                        flagRemoval=true
                     }
-                   
-                    sourceBuffer.appendBuffer(job.outputData);
+                    if(!flagRemoval ){
+
+                        sourceBuffer.appendBuffer(job.outputData);
+                        videoEl.dispatchEvent(new Event('play'))
+                    }
+                    flagRemoval=false;
+
+
                 }
                 flagSeek2=false;
 
@@ -239,6 +397,9 @@ const transcodeFileToMediaSource = async (file) => {
         var index = 0;
         var durationLeft = duration;
         var chunkStart = 0;
+        let startByte=0;
+        let endByte=block_size 
+
         while (chunkStart < duration) {
             let chunkDuration = durationLeft > chunkDurationSize ? chunkDurationSize : durationLeft;
             jobs.push({
@@ -248,10 +409,16 @@ const transcodeFileToMediaSource = async (file) => {
                 state: 'queued',    // queued, running, done
                 outputData: null,
                 oncomplete: null,
-                promiseReject:undefined
+                promiseReject:undefined,
+                startByte:startByte,
+                endByte:endByte
             });
+            await addObject(db,jobs[index])
+
             chunkStart += chunkDuration;
             durationLeft=duration-chunkDuration+chunkDurationSize
+            startByte=endByte;
+            endByte=startByte+block_size
             index++;
         }
         var currentSeek=0;
@@ -275,13 +442,14 @@ const transcodeFileToMediaSource = async (file) => {
             flagSeek=true;
             flagSeek2=true;
             flagSeek3=true;
-           
+          // videoEl.dispatchEvent("play");
         })
     
         videoEl.addEventListener('seeked',async (e)=>{
             console.log(currentSeek);
           //  console.log(sourceBuffer.buffered.start(0))
           e.preventDefault();
+          
             if(sourceBuffer.buffered.length>=1 && sourceBuffer.buffered.start(0)<currentSeek && sourceBuffer.buffered.end(sourceBuffer.buffered.length-1)>currentSeek){
                 return;
             }
@@ -292,10 +460,10 @@ const transcodeFileToMediaSource = async (file) => {
             if(currentSeek<0){
                 currentSeek=0;
             }
-            if(sourceBuffer.buffered.length>=1 &&  e.target.currentTime<sourceBuffer.buffered.start(0)){
-                jobQueue=[];
-                jobs.map((job) => jobQueue.push(job));
-            }
+            // if(sourceBuffer.buffered.length>=1 &&  currentSeek<sourceBuffer.buffered.start(0)){
+            //     jobQueue=[];
+            //     jobs.map((job) => jobQueue.push(job));
+            // }
             console.log(x,".................")
             flagSeek6=false;
             let copy=counterDelay *4;
@@ -309,10 +477,50 @@ const transcodeFileToMediaSource = async (file) => {
             }
             flagSeek6=true;
             counterDelay=0;
-            controller.abort();
+           controller &&  controller.abort();
             if(mediaSource.readyState==='open'){
                 sourceBuffer.abort();
             }
+            jobQueue=[]
+            jobs.map(job=>jobQueue.push(job))
+            let pIndex=1
+        let copyByte=Math.trunc(block_size/size)
+        let flagShard=true
+         for(let o=0;o<jobs.length;o++){
+          let obj=jobs[o]
+        // console.log(obj);
+          if(obj.chunkStart===currentSeek ){
+            console.log(obj)
+         //   copyByte=Math.ceil(obj.startByte/shardCount);
+            flagShard=false
+           // offset=Math.trunc(block_size*(obj.chunkStart)/2)
+            copyByte=block_size
+            // if(flagChunk){
+            //   offset=Math.trunc(byteSize*(obj.chunkStart))
+            //   copyByte=Math.trunc((byteSize*(obj.chunkStart))/6)
+            // }
+    
+           //job.offset=copyByte;
+           
+          }
+        //   if(flagShard===false ){
+            //console.log(copyByte)
+            if(obj.id>=1){
+                obj.startByte=copyByte
+            }
+            obj.offset=copyByte;
+            copyByte=obj.startByte+copyByte
+            // if(pIndex===1){
+            //   copyByte=copyByte
+            // }
+            obj.endByte=copyByte;
+            pIndex=pIndex+1
+            
+    
+        //   }
+          jobQueue.push(obj)
+       // }) 
+         }
             console.log(currentSeek);
             //videoEl.dispatchEvent(new Event('seeked'));
            // jobs.map((job) => jobQueue.push(job));
@@ -327,8 +535,8 @@ const transcodeFileToMediaSource = async (file) => {
                 x=jobQueue[0].id
                 g=jobQueue[0]
                 seekII=true;
-                g.chunkDuration=g.chunkDuration + g.chunkStart-currentSeek
-                g.chunkStart=currentSeek;
+                // g.chunkDuration=g.chunkDuration + g.chunkStart-currentSeek
+                // g.chunkStart=currentSeek;
                 seeking=false
                 sourceBuffer.buffered.length>=1  &&  sourceBuffer.remove(sourceBuffer.buffered.start(0),sourceBuffer.buffered.end(sourceBuffer.buffered.length-1))
                 //videoEl.play();
@@ -348,6 +556,7 @@ const transcodeFileToMediaSource = async (file) => {
         jobs.map((job) => jobQueue.push(job));
         let g=jobQueue[0]
         var counterDelay=0
+    let countEnd=0;
         while (x<jobs.length)  {
             // if(x && x%3==0  && !flagSeek){
             //     await delay(6000);
@@ -386,27 +595,44 @@ const transcodeFileToMediaSource = async (file) => {
                     console.log("No Job...............")
                     reject("No Job");
                 }
+                let inputFileChunk = `/file_${job.id}.${ext}`
+
+                if(job.endByte>filesize){
+                    job.endByte=filesize;
+                    countEnd=countEnd+1
+                }
+                console.log(countEnd)
                 job.state = 'running';
                 console.log(`Segment start: ${job.id} ${job.chunkStart} ${job.chunkDuration}`);
                 //await new Promise((r) => setTimeout(r, 1000));
                 let outputFile = `/output.${job.id}.mp4`;
                 
-                let temp_video= `input/temp_video_${job.id}.mp4`;
-                let temp_audio= `input/temp_video_${job.id}.aac`
-                
+                let temp_video= `/temp_video_${job.id}.mp4`;
+                let temp_audio= `/temp_video_${job.id}.aac`
+               // const fileBuffer =  // Example range, modify as needed
+               if(countEnd<2){
+                    console.log(job.startByte,job.endByte)
+                    if(job.startByte>0)
+                    {
+                    job.startByte=job.startByte-100000
+                    }
+                    typedArray.set(new Uint8Array(await fetchFile(fileUrl, job.startByte, job.endByte)), job.startByte)
+               }
+                console.log(typedArray)
+
+                await ffmpeg.writeFile(inputFileChunk,new Uint8Array(typedArray) );
                 // if(job.chunkStart<currentSeek){
                 //     reject();
                 // }
-                if(hasAudio){
-                    console.log(" audio.............................")
+                if(job.id===0){
                     await ffmpeg.exec([
                         '-nostats',
                         '-loglevel', 'error',
-                        '-ss', `${job.chunkStart}`,
-                        '-i', inputFile,     
+                        //'-ss', `${job.chunkStart}`,
+                        '-i', inputFileChunk,     
                         '-an',                
                         '-movflags', 'faststart+frag_every_frame+empty_moov+default_base_moof', 
-                        '-t', `${job.chunkDuration}`,
+                       '-t', `${job.chunkDuration}`,
                         '-preset', 'ultrafast',
                         '-c:v', 'libx264',    
                         '-crf', '23',         
@@ -419,11 +645,11 @@ const transcodeFileToMediaSource = async (file) => {
                     await ffmpeg.exec([
                         '-nostats',
                         '-loglevel', 'error',
-                        '-ss', `${job.chunkStart}`,
-                        '-i', inputFile,    
+                     //   '-ss', `${job.chunkStart}`,
+                        '-i', inputFileChunk,    
                         '-map', '0:a', // Assuming '0:a' selects the first audio stream  
                         '-vn',                
-                        '-t', `${job.chunkDuration}`,
+                      // '-t', `${job.chunkDuration}`,
                         '-c:a', 'aac',        
                         '-b:a', '192k',      
                         `/temp_audio_${job.id}.aac`,    
@@ -439,23 +665,114 @@ const transcodeFileToMediaSource = async (file) => {
                     await ffmpeg.exec([
                         '-nostats',
                         '-loglevel', 'error',
-                        '-i', `temp_video_${job.id}.mp4`,  
-                        '-i', `temp_audio_${job.id}.aac`,  
+                        '-i', `/temp_video_${job.id}.mp4`,  
+                        '-i', `/temp_audio_${job.id}.aac`,  
                         '-c:v', 'copy',          
                         '-c:a', 'aac',          
                         '-b:a', '192k',     
                         '-movflags', 'faststart+frag_every_frame+empty_moov+default_base_moof',
+                        '-af', 'aresample=async=1',     
                         outputFile,            
                     ],undefined,{signal});
+                }
+                hasAudio=true
+                if(hasAudio && job.id!=0){
+                    console.log(" audio.............................")
+                    await ffmpeg.exec([
+                        '-nostats',
+                        '-loglevel', 'error',
+                        
+                             
+
+                        '-i', inputFileChunk,  
+                           '-ss', `${job.chunkStart}`, 
+
+
+                        '-an',                
+                        '-movflags', 'faststart+frag_every_frame+empty_moov+default_base_moof', 
+                       '-t', `${job.chunkDuration}`,
+                        '-preset', 'ultrafast',
+                        '-c:v', 'libx264',    
+                        '-crf', '23',         
+                        `/temp_video_${job.id}.mp4`,     
+                    ],undefined,{signal});
+                           
+                // if(job.chunkStart<currentSeek){
+                //     reject();
+                // }
+                    await ffmpeg.exec([
+                        '-nostats',
+                        '-loglevel', 'error',
+                            
+
+                        '-i', inputFileChunk,
+                    '-ss', `${job.chunkStart}`, 
+                        '-map', '0:a', // Assuming '0:a' selects the first audio stream  
+                        '-vn',    
+      
+                      //  '-movflags', 'faststart+frag_every_frame+empty_moov+default_base_moof', 
+                      '-t', `${job.chunkDuration}`,
+                        '-c:a', 'aac',        
+                        '-b:a', '192k',      
+                        `/temp_audio_${job.id}.aac`,    
+                    ],undefined,{signal});
                     // if(flagSeek){
+                    //     flagSeek=false;
                     //     reject();
                     // }
                            
                 // if(job.chunkStart<currentSeek){
                 //     reject();
                 // }
-                }
-                else{
+                    await ffmpeg.exec([
+                        '-nostats',
+                        '-loglevel', 'error',
+                        '-i', `/temp_video_${job.id}.mp4`,  
+                        '-i', `/temp_audio_${job.id}.aac`,  
+                        '-c:v', 'copy',          
+                        '-c:a', 'aac',          
+                        '-b:a', '192k',     
+                        '-movflags', 'faststart+frag_every_frame+empty_moov+default_base_moof',
+                        '-af', 'aresample=async=1:min_hard_comp=0.100000:first_pts=0',
+                        outputFile,            
+                    ],undefined,{signal});
+                    // if(flagSeek){
+                    //     reject();
+                    // }
+                    // await ffmpeg.exec(
+                    //     [
+                    //       '-nostats',
+                    //       '-loglevel',
+                    //       'error',
+                    //       '-i',
+                    //       inputFileChunk,
+                    //       '-g','0',
+                    //       // '-an',
+                    //    //   '-vf', 'scale=1280:480',
+                    //    //'-ss',`${job.chunkStart}`, // Add this line to set the resolution
+                    //    '-movflags',
+                    //       'faststart+frag_every_frame+empty_moov+default_base_moof',
+                    //      // '-t', `${durationChunk}`,
+                    //       '-preset',
+                    //       'ultrafast',
+                    //       '-c:v',
+                    //       'libx264','-c:a',
+                    //       'aac',
+                    //       '-b:a',
+                    //       '192k',
+                    //       '-crf',
+                    //       '23',
+                    //       outputFile,
+                    //     ],
+                    //     undefined,
+                    //     { signal }
+                    //   )
+                    }
+                           
+                // if(job.chunkStart<currentSeek){
+                //     reject();
+                // }
+                else if(job.id!=0){
                 console.log("without audio................................")
                 await ffmpeg.exec([
                     '-nostats',                           // Suppresses the printing of encoding statistics to speed up processing.
@@ -478,13 +795,21 @@ const transcodeFileToMediaSource = async (file) => {
                 // }
                 try {
                     job.state = 'done';
-                    job.outputData = await ffmpeg.readFile(outputFile);
-                    if(flagSeek3===true && job.chunkStart>=currentSeek-1){
+                    let outputData = await ffmpeg.readFile(outputFile);
+                    await updateObject(db,job.id,"outputData",outputData);
+                    job.state = 'done'
+                    job.state = 'completed'
+                    if(flagSeek3===true && job.chunkStart==index2){
                         sourceBuffer.dispatchEvent(new Event('updateend'))
                         flagSeek3=false;
                     }
                 } catch {
-                    console.log('Error reading output video');
+                    console.log(job.id,'Error reading output video');
+                    if(flagSeek3){
+                        index2=job.id+1
+                    }
+                    console.log(index2)
+                    //resolve("OK")
                 }
               
                 console.log(`Segment done: ${job.id} ${job.chunkStart} ${job.chunkDuration}`);
@@ -498,11 +823,12 @@ const transcodeFileToMediaSource = async (file) => {
                     }
                     console.log("output file................................")
                     await ffmpeg.deleteFile(outputFile);
+                     await ffmpeg.deleteFile(inputFileChunk)
                     
                     
                 } catch {
-                    console.log('Error deleting output video');
-                }
+                    console.log(job.id,'Error deleting output video');
+                 }
                 // ffmpeg.off('progress', onprogress);
                 // ffmpeg.off('log', onlog);
                 resolve("OK")
@@ -520,6 +846,7 @@ const transcodeFileToMediaSource = async (file) => {
         }
     }
     await Promise.all(ffmpegs.map(async (ffmpeg) => {
+        let useWorkerFS=false;
         if (useWorkerFS){
             await ffmpeg.unmount(inputDir);
         }
@@ -529,7 +856,7 @@ const transcodeFileToMediaSource = async (file) => {
 
 addEventListener("load", async (event) => {
     localFileInput = document.querySelector('#local-file');
-    localFileInput.addEventListener('change', async () => await transcodeLocalFileInputToMediaSource());
+    localFileInput.addEventListener('click', async () => await transcodeLocalFileInputToMediaSource());
     loadBtn = document.querySelector('#load-button');
     loadBtn.addEventListener('click', async () => await load());
     loadBtn.removeAttribute('disabled');
@@ -538,35 +865,42 @@ addEventListener("load", async (event) => {
     console.log('window loaded');
 
 });
+async function handleSubmit(event) {
+    event.preventDefault(); 
+    fileUrl = document.getElementById('url').value;
+    ext = document.getElementById('extension').value;
 
-// function logVideoEvent(e) {
-//     var debugTable = document.getElementById("videoDebug");
-//     if (!debugTable) {
-//         debugTable = document.createElement("table");
-//         debugTable.id = "videoDebug";
-//         debugTable.innerHTML = '<tr><td>time</td><td>target</td><td>name</td><td>ct</td><td>ns</td><td>rs</td><td>dur</td><td>error</td><td>bc</td><td>last buffer</td></tr>';
-//         document.body.appendChild(debugTable);
-//     }
-//     var tr = document.createElement("tr");
-//     if (debugTable.children.length > 1) {
-//         debugTable.insertBefore(tr, debugTable.children[1]);
-//     } else {
-//         debugTable.appendChild(tr);
-//     }
-//     var date = new Date();
-//     tr.innerHTML = '<td>' + (date.getHours() + ":" + date.getMinutes() + ":<b>" + date.getSeconds() + "." + date.getMilliseconds()) + '</b></td><td>' + Object.getPrototypeOf(e.target).constructor.name + '</td><th>' + e.type + '</th><td>' + videoEl.currentTime + '</td><td>' + videoEl.networkState + '</td><td>' + videoEl.readyState + '</td><td>' + videoEl.duration + '</td><td>' + (videoEl.error ? videoEl.error.code : '-') + '</td><td>' + videoEl.buffered.length + '</td><td>' + (videoEl.buffered.length ? (videoEl.buffered.start(videoEl.buffered.length - 1) + " - " + videoEl.buffered.end(videoEl.buffered.length - 1)) : 0) + '</td>' ;
-// }
+    alert(`URL: ${url}\nExtension: ${extension}`);
+}
 
-// function attachVideoDebug(video) {
-//     var events = ["loadstart", "progress", "suspend", "abort", "error", "emptied", "stalled", "loadedmetadata", "loadeddata", "canplay", "canplaythrough", "playing", "waiting", "seeking", "seeked", "ended", "durationchange", "timeupdate", "play", "pause", "ratechange", "resize", "volumechange"];
-//     for (var i=0; i<events.length; i++) {
-//         video.addEventListener(events[i], logVideoEvent);
-//     }
-// }
+function logVideoEvent(e) {
+    var debugTable = document.getElementById("videoDebug");
+    if (!debugTable) {
+        debugTable = document.createElement("table");
+        debugTable.id = "videoDebug";
+        debugTable.innerHTML = '<tr><td>time</td><td>target</td><td>name</td><td>ct</td><td>ns</td><td>rs</td><td>dur</td><td>error</td><td>bc</td><td>last buffer</td></tr>';
+        document.body.appendChild(debugTable);
+    }
+    var tr = document.createElement("tr");
+    if (debugTable.children.length > 1) {
+        debugTable.insertBefore(tr, debugTable.children[1]);
+    } else {
+        debugTable.appendChild(tr);
+    }
+    var date = new Date();
+    tr.innerHTML = '<td>' + (date.getHours() + ":" + date.getMinutes() + ":<b>" + date.getSeconds() + "." + date.getMilliseconds()) + '</b></td><td>' + Object.getPrototypeOf(e.target).constructor.name + '</td><th>' + e.type + '</th><td>' + videoEl.currentTime + '</td><td>' + videoEl.networkState + '</td><td>' + videoEl.readyState + '</td><td>' + videoEl.duration + '</td><td>' + (videoEl.error ? videoEl.error.code : '-') + '</td><td>' + videoEl.buffered.length + '</td><td>' + (videoEl.buffered.length ? (videoEl.buffered.start(videoEl.buffered.length - 1) + " - " + videoEl.buffered.end(videoEl.buffered.length - 1)) : 0) + '</td>' ;
+}
 
-// function attachBufferDebug(sourceBuffer) {
-//     var events = ["updatestart", "update", "updateend", "error", "abort" ];
-//     for (var i=0; i<events.length; i++) {
-//         sourceBuffer.addEventListener(events[i], logVideoEvent);
-//     }
-// }
+function attachVideoDebug(video) {
+    var events = ["loadstart", "progress", "suspend", "abort", "error", "emptied", "stalled", "loadedmetadata", "loadeddata", "canplay", "canplaythrough", "playing", "waiting", "seeking", "seeked", "ended", "durationchange", "timeupdate", "play", "pause", "ratechange", "resize", "volumechange"];
+    for (var i=0; i<events.length; i++) {
+        video.addEventListener(events[i], logVideoEvent);
+    }
+}
+
+function attachBufferDebug(sourceBuffer) {
+    var events = ["updatestart", "update", "updateend", "error", "abort" ];
+    for (var i=0; i<events.length; i++) {
+        sourceBuffer.addEventListener(events[i], logVideoEvent);
+    }
+}
