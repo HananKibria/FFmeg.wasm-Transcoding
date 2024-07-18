@@ -935,11 +935,11 @@ const transcodeFileToMediaSource = async () => {
                 }
                 try {
                     
-                    if(hasAudio){
+                 //   if(hasAudio){
                         console.log("skdsakdsak................................temp-video")
                         await ffmpeg.deleteFile(`/temp_audio_${job.id}.aac`);
                         await ffmpeg.deleteFile(`/temp_video_${job.id}.mp4`);
-                    }
+                   // }
                     console.log("output file................................")
                     await ffmpeg.deleteFile(outputFile);
                     //  await ffmpeg.deleteFile(inputFileChunk)
