@@ -97,8 +97,14 @@ const load = async () => {
         coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
         wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
         workerURL: await toBlobURL(`${baseURL}/ffmpeg-core.worker.js`, 'text/javascript'),
+        totalMemory: 256 * 1024 * 1024,  // 256MB
+        TOTAL_MEMORY: 512 * 1024 * 1024, // 512MB, if TOTAL_MEMORY is used
+        wasmOptions: {
+          initialMemory: 256 * 1024 * 1024,  // 256MB
+          maximumMemory: 512 * 1024 * 1024,  // 512MB
+        }
 
-    };
+    }
 }
     else {
     loadConfig = 
