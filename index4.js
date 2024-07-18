@@ -19,6 +19,7 @@ const baseURL = 'packages';
 var db
 let fileUrl=null;
 let ext=null
+var loadConfig = null;
 
 const toBlobURL = async (url, mimeType) => {
     const resp = await fetch(url);
@@ -89,7 +90,6 @@ function durationToSeconds(duration) {
   }
 const load = async () => {
     loadBtn.setAttribute('disabled', true);
-    var loadConfig = null;
     if (useMultiThreadIfAvailable && window.crossOriginIsolated) {
         console.log("threading........................................")
         loadConfig = {
@@ -780,6 +780,7 @@ const transcodeFileToMediaSource = async () => {
                 hasAudio=true
                 if(hasAudio && job.id!=0 ){
                     console.log(" audio.............................")
+                    try{
                     await ffmpeg.exec([
                         '-nostats',
                         '-loglevel', 'error',
@@ -861,6 +862,93 @@ const transcodeFileToMediaSource = async () => {
                         '-f','mp4',
                         outputFile,            
                     ],undefined,{signal});
+                }
+                catch(err){
+                    ffmpeg.terminate();
+                    await ffmpeg.load(loadConfig)
+                    await ffmpeg.writeFile(inputFileChunk,new Uint8Array(typedArray) );
+                    await ffmpeg.exec([
+                        '-nostats',
+                        '-loglevel', 'error',
+                        
+                       '-analyzeduration', '0',
+                       
+                        '-ss', `${job.chunkStart}`, 
+
+                        '-i', inputFileChunk,  
+                  //      '-flags', 'low_delay' ,'-vf', 'setpts=0',
+
+                        '-t', `${dura}`,
+
+                        '-an',                
+                        '-movflags', 'frag_every_frame+empty_moov+default_base_moof', 
+                        '-preset', 'ultrafast',
+                        '-tune','zerolatency',
+
+                        '-c:v', 'libx264',  
+                       // '-vf' ,'"scale=trunc(iw/2)*2:trunc(ih/2)*2"', 
+
+                        '-crf', '23', 
+                     //   '-reset_timestamps','1',  
+                    //    '-g','10',
+                        //'-fflags', 'nobuffer', '-flags', 'low_delay',    
+                       // '-g','0', 
+                       //'-g','0',   
+                    //    '-fflags', 'nobuffer',
+
+                        `/temp_video_${job.id}.mp4`,     
+                    ],undefined,{signal});
+                           
+                // if(job.chunkStart<currentSeek){
+                //     reject();
+                // }
+                    await ffmpeg.exec([
+                        '-nostats',
+                        '-loglevel', 'error',
+                        '-analyzeduration', '0',
+
+                        '-ss', `${job.chunkStart}`, 
+
+
+                        '-i', inputFileChunk,
+                        '-t', `${dura}`,
+
+                        '-map', '0:a', // Assuming '0:a' selects the first audio stream  
+                        '-vn',    
+                        '-movflags', 'frag_every_frame+empty_moov+default_base_moof', 
+                        '-tune','zerolatency',
+
+                      //  '-movflags', 'faststart+frag_every_frame+empty_moov+default_base_moof', 
+                        '-c:a', 'aac',        
+                        '-b:a', '192k',
+                     //   '-reset_timestamps','1',  
+    //   '-fflags', 'nobuffer',
+                        `/temp_audio_${job.id}.aac`,    
+                    ],undefined,{signal});
+                    // if(flagSeek){
+                    //     flagSeek=false;
+                    //     reject();
+                    // }
+                           
+                // if(job.chunkStart<currentSeek){
+                //     reject();
+                // }
+                    await ffmpeg.exec([
+                        '-nostats',
+                        '-loglevel', 'error',
+                    // '-analyzeduration', '0',
+
+                        '-i', `/temp_video_${job.id}.mp4`,  
+                        '-i', `/temp_audio_${job.id}.aac`, 
+                        '-c:v', 'copy',          
+                        '-c:a', 'aac',          
+                        '-b:a', '192k',     
+                        '-movflags', 'frag_every_frame+empty_moov+default_base_moof+omit_tfhd_offset',
+                        '-af', 'aresample=async=1',
+                        '-f','mp4',
+                        outputFile,            
+                    ],undefined,{signal});
+                }
                     // if(flagSeek){
                     //     reject();
                     // }
