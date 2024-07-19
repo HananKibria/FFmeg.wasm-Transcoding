@@ -396,7 +396,7 @@ const transcodeFileToMediaSource = async () => {
                 }
                  if(seekII===true && !sourceBuffer.updating){
                     ii=index2;
-                   // sourceBuffer.timestampOffset=currentSeek;
+                   sourceBuffer.timestampOffset=currentSeek;
                     seekII=false;
 
                  }
@@ -413,13 +413,13 @@ const transcodeFileToMediaSource = async () => {
                 // //        sourceBuffer.remove(sourceBuffer.buffered.start(0),sourceBuffer.buffered.end(0)-1)
                 //   //      flagRemoval=true;
                 //     }
-                    if(flagSeek8){
+                    if(flagSeek8 && job.id===index2){
                         sourceBuffer.timestampOffset=job.chunkStart
                     //
                        flagSeek8=false;
                        flagSeek11=false;
                     }
-                   else{
+                   else if(sourceBuffer.buffered.length>0){
                        sourceBuffer.timestampOffset=sourceBuffer.buffered.end(0);
 
                     }
@@ -430,12 +430,12 @@ const transcodeFileToMediaSource = async () => {
                         ii=ii-1
                         flagRemoval=true
                     }
-                    if(!flagRemoval && job.outputData!=null && job.outputData.byteLength>10000){
+                    if(!flagRemoval && job.outputData!=null && job.outputData.byteLength>10000 && flagSeek8===false){
                         // console.log("ouputData",job.outputData)
                         sourceBuffer.appendBuffer(job.outputData);
                         videoEl.dispatchEvent(new Event('play'))
                     }
-                    else{
+                    else if(!flagRemoval){
                         flagSeek8=true;
                         sourceBuffer.dispatchEvent(new Event("updatend"));
                     }
@@ -530,7 +530,7 @@ const transcodeFileToMediaSource = async () => {
             console.log(x,".................")
             flagSeek6=false;
             let copy=x
-            for(let i=index2;i<copy;i++){
+            for(let i=x;i<copy;i++){
                 try{
                     await jobs[i].promiseReject();
                 }
@@ -954,7 +954,7 @@ const transcodeFileToMediaSource = async () => {
                     ],undefined,{signal});
                 }
                 else{
-                    throw "error"
+                    reject()
                 }
                 }
             }
