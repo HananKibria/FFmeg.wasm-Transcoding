@@ -530,7 +530,7 @@ const transcodeFileToMediaSource = async () => {
             console.log(x,".................")
             flagSeek6=false;
             let copy=x
-            for(let i=x;i<copy;i++){
+            for(let i=index2;i<copy+4;i++){
                 try{
                     await jobs[i].promiseReject();
                 }
