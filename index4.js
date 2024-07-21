@@ -351,6 +351,7 @@ const transcodeFileToMediaSource = async () => {
             // e.preventDefault();
              if(seeking){
                  currentSeek=Math.trunc(e.target.currentTime);
+                 currentTime=Math.trunc(e.target.currentTime)
 
                  seeking=false;
                  videoEl.dispatchEvent(new Event('seeked'))
@@ -437,6 +438,7 @@ const transcodeFileToMediaSource = async () => {
                     }
                     else if(!flagRemoval){
                         flagSeek8=true;
+                        index2=job.id+1
                         sourceBuffer.dispatchEvent(new Event("updatend"));
                     }
                     flagRemoval=false;
@@ -504,6 +506,12 @@ const transcodeFileToMediaSource = async () => {
             flagSeek3=true;
             flagSeek12=true;
           // videoEl.dispatchEvent("play");
+        //   if(isPlaying===false && flagPlayedSeek===false){
+        //     flagPlayedSeek=true
+        //     setTimeout(()=>{
+        //       videoEl.dispatchEvent(new Event("play"))
+        //     },500)
+        //   }
         })
     
         videoEl.addEventListener('seeked',async (e)=>{
