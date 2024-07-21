@@ -262,13 +262,13 @@ const transcodeFileToMediaSource = async () => {
     }
     //const fileBuffer = new Uint8Array(await fetchFile(fileUrl,0, 100000)); // Example range, modify as needed
     //console.log(fileBuffer)
-    await ffmpegs[0].writeFile(inputFile, new Uint8Array(await fetchFile(fileUrl,0, 100000)) );
+    await ffmpegs[0].writeFile(inputFile, new Uint8Array(await fetchFile(fileUrl,0, 300000)) );
     var [duration,durationChunk,bytes,bitrate] = await getDuration(inputFile);
 
     
     console.log("bitrate",bitrate)
     console.log(durationChunk);
-    await ffmpegs[0].writeFile(inputFile, new Uint8Array(await fetchFile(fileUrl,0, 200000)) );
+    await ffmpegs[0].writeFile(inputFile, new Uint8Array(await fetchFile(fileUrl,0, 600000)) );
     var [duration2,durationChunk2,bytes2,bitrate2] = await getDuration(inputFile);
 
 //    let block_size=Math.trunc(filesize/duration)
@@ -573,7 +573,7 @@ const transcodeFileToMediaSource = async () => {
          //   copyByte=Math.ceil(obj.startByte/shardCount);
             flagShard=false
            // offset=Math.trunc(block_size*(obj.chunkStart)/2)
-            copyByte=Math.trunc((100000/size) *obj.chunkStart-durationChunk);
+            copyByte=Math.trunc((300000/size) *obj.chunkStart-durationChunk);
             // if(flagChunk){
             //   offset=Math.trunc(byteSize*(obj.chunkStart))
             //   copyByte=Math.trunc((byteSize*(obj.chunkStart))/6)
