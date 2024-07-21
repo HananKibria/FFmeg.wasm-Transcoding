@@ -438,7 +438,7 @@ const transcodeFileToMediaSource = async () => {
                     }
                     else if(!flagRemoval){
                         flagSeek8=true;
-                        index2=job.id+1
+                        // index2=job.id+1
                         sourceBuffer.dispatchEvent(new Event("updatend"));
                     }
                     flagRemoval=false;
@@ -538,9 +538,11 @@ const transcodeFileToMediaSource = async () => {
             console.log(x,".................")
             flagSeek6=false;
             let copy=x
-            for(let i=index2;i<copy+4;i++){
+            for(let i=index2;i<copy+1;i++){
                 try{
-                    await jobs[i].promiseReject();
+                    if(jobs[i].promiseReject!==undefined){
+                        await jobs[i].promiseReject();
+                    }
                 }
                 catch(err){
                     console.log(err);
