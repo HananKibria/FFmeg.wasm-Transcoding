@@ -272,7 +272,7 @@ const transcodeFileToMediaSource = async () => {
     var [duration2,durationChunk2,bytes2,bitrate2] = await getDuration(inputFile);
 
 //    let block_size=Math.trunc(filesize/duration)
-    let block_size=Math.trunc(filesize/duration *2);
+    let block_size=Math.trunc(filesize/duration *3);
     let size=durationChunk2-durationChunk
 
     // await ffmpegs[0].writeFile(inputFile, new Uint8Array(await fetchFile(fileUrl,0, block_size+100000)) );
