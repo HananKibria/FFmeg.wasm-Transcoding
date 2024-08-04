@@ -514,14 +514,14 @@ const transcodeFileToMediaSource = async (file) => {
                 //    console.log(frameTimes)
                 //    if(){
                  console.log(job.frameTime)
-                //  if(sourceBuffer.buffered.end(0)>job.frameTime){
-                //      sourceBuffer.appendWindowStart=job.frameTime
-                //  }
-                 sourceBuffer.timestampOffset=sourceBuffer.buffered.end(0)
+                 if(sourceBuffer.buffered.end(0)>job.frameTime){
+                     sourceBuffer.timestampOffset=toFixed(job.frameTime,2)
+                 }
+                 //sourceBuffer.timestampOffset=job.
                 //    sourceBuffer.appendWindowStart=job.frameTime
                 //     frameTimes.shift();
                     //}
-                //  sourceBuffer.timestampOffset=job.chunkStart
+                  sourceBuffer.timestampOffset=sourceBuffer.buffered.end(0)
                   //  //
                      //  flagSeek8=false;
                        //flagSeek11=false;
@@ -599,9 +599,11 @@ const transcodeFileToMediaSource = async (file) => {
                 chunkFrameDuration:chunkFrameDuration,
                 chunkFrameId:chunkFrameId
             });
+            
             chunkFrameStart+=chunkFrameDuration
 
             if(chunkFrameFlag){
+                // jobs[index].chunkFrameDuration=frameEnd-chunkFrameStart
                 chunkFrameStart=frameEnd
             }
            if(chunkFrameStart>=frameEnd){
@@ -634,7 +636,7 @@ const transcodeFileToMediaSource = async (file) => {
           
             if(flagFrame){
 
-                await ffmpegs[l].exec(['-ss',`${jobs[index].frameStart}`,'-t',`${jobs[index].frameEnd}`,'-i',name,'-threads','4', '-movflags', 'faststart+frag_every_frame+empty_moov+default_base_moof','-c','copy','-force_key_frames', 'expr:gte(t,n_forced*1)',`output.${ext}`]);
+                await ffmpegs[l].exec(['-ss',`${jobs[index].frameStart+0.1}`,'-t',`${jobs[index].frameEnd-0.1}`,'-i',name,'-threads','4', '-movflags', 'faststart+frag_every_frame+empty_moov+default_base_moof','-c','copy','-force_key_frames', 'expr:gte(t,n_forced*1)',`output.${ext}`]);
                 let dataObj=await ffmpegs[l].readFile(`output.${ext}`)
                 console.log(dataObj)
                 jobs2.outputData=new Uint8Array(dataObj);
@@ -646,12 +648,13 @@ const transcodeFileToMediaSource = async (file) => {
                 frameEnd=frameTimes[0]
                 durationFrame=frameEnd-frameStart
                 chunkFrameStart=0;
+
                 
 
             }
 
            flagFrame=false;
-            chunkStart += chunkDuration;
+            chunkStart += chunkFrameDuration;
             durationLeft=duration-chunkDuration+chunkDurationSize
             startByte=endByte;
             endByte=startByte+block_size
@@ -1001,7 +1004,8 @@ const transcodeFileToMediaSource = async (file) => {
                     await ffmpeg.exec([
                         '-nostats',
                         '-loglevel', 'error',
-                        
+                        '-threads','4',
+
                       // '-analyzeduration', '10000000',
                      //  '-probesize','10000000',
 
@@ -1013,18 +1017,20 @@ const transcodeFileToMediaSource = async (file) => {
                         //'-copyts',  
                      //   '-avoid_negative_ts', 'make_zero',
                        // '-ss', `${job.chunkStart}`, 
-                                
-                      '-i', inputFileChunk,  
+                       '-ss',`${job.chunkFrameStart}`,                 
+ 
+                       
+                      '-i', inputFileChunk, 
+                      '-t', `${job.chunkFrameDuration}`, 
                   //      '-flags', 'low_delay' ,'-vf', 'setpts=0',
                 //   '-i','metadata.txt',
                 //   "-map_metadata", "1",
                         //                   '-reset_timestamps','1', 
-                        '-threads','4',
 
-                        //
-                               '-ss',`${job.chunkFrameStart}`,                 
+                    //     //
+                    //            '-ss',`${job.chunkFrameStart}`,                 
  
-                      '-t', `${job.chunkFrameDuration}`,
+                    //   '-t', `${job.chunkFrameDuration}`,
                         
                         '-an',                
                       //  '-movflags', 'frag_every_frame+empty_moov+default_base_moof', 
@@ -1052,6 +1058,7 @@ const transcodeFileToMediaSource = async (file) => {
                         '-nostats',
                         '-loglevel', 'error',
                    //     '-analyzeduration', '0',
+                   '-threads','4',
 
             //             //'-skip_initial_bytes','10000',
             //             '-probesize','10000000',
@@ -1060,16 +1067,16 @@ const transcodeFileToMediaSource = async (file) => {
             //   '-fflags', '+discardcorrupt', 
             //         '-err_detect', 'ignore_err',
             //'-copyts',  
-
+            '-ss',`${job.chunkFrameStart}`,                 
+ 
                         '-i', inputFileChunk,
+                        
+            '-t', `${job.chunkFrameDuration}`,
                         // '-i','metadata.txt',
                         // "-map_metadata", "1",
-                        '-ss',`${job.chunkFrameStart}`,                 
- 
-                        '-t', `${job.chunkFrameDuration}`,
+                 
                     //  '-ss',`${job.frameTime}`,            
                     //     '-t', `${1}`,
-                        '-threads','4',
 
                         //      
                       //  '-ss', `${job.chunkStart}`,  
@@ -1100,10 +1107,10 @@ const transcodeFileToMediaSource = async (file) => {
                         '-nostats',
                         '-loglevel', 'error',
                     // '-analyzeduration', '0',
+                    '-threads','4',
 
                         '-i', `/temp_video_${job.id}.mp4`,  
                         '-i', `/temp_audio_${job.id}.aac`, 
-                        '-threads','4',
 
                         '-c:v', 'copy',          
                         '-c:a', 'aac',          
