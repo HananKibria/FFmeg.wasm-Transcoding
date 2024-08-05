@@ -2,7 +2,7 @@
 
 let currentVideoTime = 0;
 let saveCurrentTime = true;
-var ffmpegCount = 5;
+var ffmpegCount = 2;
 var chunkDurationSize = 1;
 var useMultiThreadIfAvailable = true;
 var useWorkerFSIfAvailable = true;
@@ -238,7 +238,7 @@ function extractFrameTimes(logString) {
         const seconds = parseFloat(match[3]);
         
         // Convert hours and minutes to seconds and add to fractional seconds, then round it
-        const totalSeconds = (hours * 3600 + minutes * 60 + seconds);
+        const totalSeconds = toFixed((hours * 3600 + minutes * 60 + seconds),2);
         
         frameTimesInSeconds.push(totalSeconds);
     }
@@ -359,7 +359,7 @@ const transcodeFileToMediaSource = async (file) => {
     // console.log(fileBuffer)
     // await ffmpegs[0].writeFile(inputFile, new Uint8Array(await fetchFile(fileUrl,0, 100000)) );
     var [duration,durationChunk,bytes,bitrate,frameTimes] = await getDuration(name);
-    ffmpegs.shift()
+  //  ffmpegs.shift()
     // let duration=1700
     // let durationChunk=1
    console.log("bitrate",bitrate)
@@ -513,15 +513,15 @@ const transcodeFileToMediaSource = async (file) => {
                    // if(flagSeek8){
                 //    console.log(frameTimes)
                 //    if(){
-                 console.log(job.frameTime)
-                 if(sourceBuffer.buffered.end(0)>job.frameTime){
-                     sourceBuffer.timestampOffset=toFixed(job.frameTime,2)
-                 }
+                //  console.log(job.frameTime)
+              //   if(sourceBuffer.buffered.end(0)>ch){
+                //     sourceBuffer.appendWindowStart=job.frameTime
+                 //}
                  //sourceBuffer.timestampOffset=job.
                 //    sourceBuffer.appendWindowStart=job.frameTime
                 //     frameTimes.shift();
                     //}
-                  sourceBuffer.timestampOffset=sourceBuffer.buffered.end(0)
+                  sourceBuffer.timestampOffset=job.chunkStart
                   //  //
                      //  flagSeek8=false;
                        //flagSeek11=false;
@@ -573,7 +573,7 @@ const transcodeFileToMediaSource = async (file) => {
         let chunkFrameId=0
         let durationFrame=frameTimes[0];
         let chunkFrameFlag=true;
-        while (chunkStart<duration){
+        while (chunkStart<=duration){
             let chunkDuration = durationLeft > chunkDurationSize ? chunkDurationSize : durationLeft;
             durationFrameLeft=durationFrame-chunkFrameStart
 
@@ -595,12 +595,13 @@ const transcodeFileToMediaSource = async (file) => {
                 frameTime:frameTimes[0],
                 frameStart:frameStart,
                 frameEnd:frameEnd,
-                chunkFrameStart:chunkFrameStart,
-                chunkFrameDuration:chunkFrameDuration,
+                chunkFrameStart:toFixed(chunkFrameStart,2),
+                chunkFrameDuration:toFixed(chunkFrameDuration,2),
                 chunkFrameId:chunkFrameId
             });
             
             chunkFrameStart+=chunkFrameDuration
+            
 
             if(chunkFrameFlag){
                 // jobs[index].chunkFrameDuration=frameEnd-chunkFrameStart
@@ -634,9 +635,8 @@ const transcodeFileToMediaSource = async (file) => {
             console.log(jobs[index])
             await addObject(db,jobs[index])
           
-            if(flagFrame){
-
-                await ffmpegs[l].exec(['-ss',`${jobs[index].frameStart+0.1}`,'-t',`${jobs[index].frameEnd-0.1}`,'-i',name,'-threads','4', '-movflags', 'faststart+frag_every_frame+empty_moov+default_base_moof','-c','copy','-force_key_frames', 'expr:gte(t,n_forced*1)',`output.${ext}`]);
+           // if(flagFrame){
+                await ffmpegs[l].exec(['-ss',`${jobs[index].chunkStart}`,'-i',name,'-threads','4','-t',`${jobs[index].frameTime}`, '-movflags', 'faststart+frag_every_frame+empty_moov+default_base_moof','-c','copy', `output.${ext}`]);
                 let dataObj=await ffmpegs[l].readFile(`output.${ext}`)
                 console.log(dataObj)
                 jobs2.outputData=new Uint8Array(dataObj);
@@ -645,16 +645,17 @@ const transcodeFileToMediaSource = async (file) => {
                 chunkFrameId=chunkFrameId+1
                 frameTimes.shift()
                 frameStart=frameEnd
-                frameEnd=frameTimes[0]
+                frameEnd=frameTimes[1]
                 durationFrame=frameEnd-frameStart
                 chunkFrameStart=0;
 
                 
 
-            }
+            //}
 
            flagFrame=false;
-            chunkStart += chunkFrameDuration;
+            chunkStart = jobs[index].frameTime;
+       //     if(chunkStart<0){chunkStart=0}
             durationLeft=duration-chunkDuration+chunkDurationSize
             startByte=endByte;
             endByte=startByte+block_size
@@ -665,7 +666,7 @@ const transcodeFileToMediaSource = async (file) => {
            // frameStart=frameStart+1
             index++
             l=l+1;
-            if(l===4){
+            if(l===2){
                 l=0;
             }
         
@@ -820,6 +821,7 @@ const transcodeFileToMediaSource = async (file) => {
     let countEnd=0;
     let inputFileChunk = `/file2.${ext}`
     console.log(jobs.length)
+    let addition=jobs[0].frameTime
         while (x<jobs.length)  {
             // if(x && x%3==0  && !flagSeek){
             //     await delay(6000);
@@ -899,7 +901,11 @@ const transcodeFileToMediaSource = async (file) => {
                 // if(job.chunkStart<currentSeek){
                 //     reject();
                 // }
-                if(job.id===0){
+                if(job.id===0 ){
+                  let plus=0;  
+                  // if(job.id==1){
+                  //     plus=jobs[0].frameTime
+                  //   }
                     await ffmpeg.exec([
                         '-nostats',
                         '-loglevel',
@@ -910,7 +916,7 @@ const transcodeFileToMediaSource = async (file) => {
                     //  '-fflags', '+discardcorrupt', 
                     // '-err_detect', 'ignore_err',
                        // '-avoid_negative_ts', 'make_zero',
-                      //  '-ss', `${job.chunkStart}`,
+                        // '-ss', `${plus}`,
 
                         '-i', inputFileChunk,    
                         '-threads','4',
@@ -919,15 +925,15 @@ const transcodeFileToMediaSource = async (file) => {
                         // '-i','metadata.txt',
                         // "-map_metadata", "1",
                         '-an',                
-                  //      '-movflags', 'frag_every_frame+empty_moov+default_base_moof', 
-                    //   '-t', `${1}`,
+                        //'-movflags', 'frag_every_frame+empty_moov+default_base_moof', 
+                     // '-t', `${2}`,
                         '-preset', 'ultrafast',
                       //  '-tune','zerolatency',
                         
 
                         '-c:v', 'libx264',
                         '-crf', '23',
-                        // '-g','0',
+//'-force_key_frames', 'expr:gte(t,n_forced*1)',                 //    '-fflags', 'nobuffer',
                         `/temp_video_${job.id}.mp4`,     
                     ],undefined,{signal});
                            
@@ -937,7 +943,7 @@ const transcodeFileToMediaSource = async (file) => {
                     await ffmpeg.exec([
                         '-nostats',
                         '-loglevel', 'error',
-                     //   '-ss', `${job.chunkStart}`,
+                        // '-ss', `${plus}`,
                 //    '-analyzeduration', '0',
                 //    '-probesize','32',
 
@@ -956,7 +962,7 @@ const transcodeFileToMediaSource = async (file) => {
                         '-vn',     
                   //      '-movflags', 'frag_every_frame+empty_moov+default_base_moof', 
            
-                   //   '-t', `${1}`,
+                    //  '-t', `${1}`,
                     //   '-tune','zerolatency',
 
                         '-c:a', 'aac',        
@@ -997,9 +1003,22 @@ const transcodeFileToMediaSource = async (file) => {
                 // if(job.id===index2){
                 //     dura=4
                 // }
+                
                 hasAudio=true
                 if(hasAudio && job.id!=0 ){
-                    console.log(" audio.............................")
+                // if(job.chunkFrameStart==0){
+                //   addition=jobs[0].frameTime
+                // }
+                // else{
+                //   addition=0
+                // }
+                 if(job.id===1){
+                addition=0.4
+              }
+                 else{
+                   addition=0
+              }
+                  console.log(" audio.............................")
                     try{
                     await ffmpeg.exec([
                         '-nostats',
@@ -1017,11 +1036,13 @@ const transcodeFileToMediaSource = async (file) => {
                         //'-copyts',  
                      //   '-avoid_negative_ts', 'make_zero',
                        // '-ss', `${job.chunkStart}`, 
-                       '-ss',`${job.chunkFrameStart}`,                 
  
-                       
                       '-i', inputFileChunk, 
-                      '-t', `${job.chunkFrameDuration}`, 
+                     // '-ss',`${job.chunkStart}`,     
+                      ///  '-t',`${job.frameTime+2}`,
+                      // '-ss',`${job.chunkFrameStart+addition}`,       
+
+                      // '-t', `${1}`, 
                   //      '-flags', 'low_delay' ,'-vf', 'setpts=0',
                 //   '-i','metadata.txt',
                 //   "-map_metadata", "1",
@@ -1033,7 +1054,7 @@ const transcodeFileToMediaSource = async (file) => {
                     //   '-t', `${job.chunkFrameDuration}`,
                         
                         '-an',                
-                      //  '-movflags', 'frag_every_frame+empty_moov+default_base_moof', 
+                       // '-movflags', 'frag_every_frame+empty_moov+default_base_moof', 
                         '-preset', 'ultrafast',
                    //     '-tune','zerolatency',
 
@@ -1045,8 +1066,7 @@ const transcodeFileToMediaSource = async (file) => {
                     //    '-g','10',
                         //'-fflags', 'nobuffer', '-flags', 'low_delay',    
                         //'-g','1', 
-                       //'-g','0',   
-                    //    '-fflags', 'nobuffer',
+                //    '-fflags', 'nobuffer',
 // '-force_key_frames', 'expr:gte(t,n_forced*1)',
                         `/temp_video_${job.id}.mp4`,     
                     ],undefined,{signal});
@@ -1067,11 +1087,12 @@ const transcodeFileToMediaSource = async (file) => {
             //   '-fflags', '+discardcorrupt', 
             //         '-err_detect', 'ignore_err',
             //'-copyts',  
-            '-ss',`${job.chunkFrameStart}`,                 
- 
+
                         '-i', inputFileChunk,
-                        
-            '-t', `${job.chunkFrameDuration}`,
+                       // '-ss',`${job.chunkStart}`,     
+                      ///  '-t',`${job.frameTime+2}`,              
+
+//             '-t', `${1}`,
                         // '-i','metadata.txt',
                         // "-map_metadata", "1",
                  
@@ -1120,6 +1141,7 @@ const transcodeFileToMediaSource = async (file) => {
                         '-f','mp4',
                         outputFile,            
                     ],undefined,{signal});
+                    addition=0
              }
                 catch(err){
                     console.log(err)
@@ -1218,7 +1240,7 @@ const transcodeFileToMediaSource = async (file) => {
                 // if(job.chunkStart<currentSeek){
                 //     reject();
                 // }
-                else if(job.id!=0){
+                else if(job.id!=0 ){
                 console.log("without audio................................")
                 await ffmpeg.exec([
                     '-nostats',                           // Suppresses the printing of encoding statistics to speed up processing.
