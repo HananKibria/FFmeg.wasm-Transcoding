@@ -359,7 +359,7 @@ const transcodeFileToMediaSource = async (file) => {
     // console.log(fileBuffer)
     // await ffmpegs[0].writeFile(inputFile, new Uint8Array(await fetchFile(fileUrl,0, 100000)) );
     var [duration,durationChunk,bytes,bitrate,frameTimes] = await getDuration(name);
-    ffmpegs.shift()
+   // ffmpegs.shift()
     // let duration=1700
     // let durationChunk=1
    console.log("bitrate",bitrate)
@@ -462,7 +462,7 @@ const transcodeFileToMediaSource = async (file) => {
             URL.revokeObjectURL(mediaSourceURL);
             mediaSource.duration = duration
             sourceBuffer = mediaSource.addSourceBuffer(mimeCodec);
-            sourceBuffer.mode = 'segments';
+            sourceBuffer.mode = 'sequence';
             sourceBuffer.appendWindowStart=0;
             sourceBuffer.appendWindowEnd=duration;
             let flagSeek11=true;
@@ -513,9 +513,9 @@ const transcodeFileToMediaSource = async (file) => {
                    // if(flagSeek8){
                 //    console.log(frameTimes)
                 //    if(){
-                 console.log(job.frameTime)
+                //  console.log(job.frameTime)
                  if(sourceBuffer.buffered.end(0)>job.frameTime){
-                     sourceBuffer.timestampOffset=toFixed(job.frameTime,2)
+                     sourceBuffer.timestampOffset=job.chunkStart
                  }
                  //sourceBuffer.timestampOffset=job.
                 //    sourceBuffer.appendWindowStart=job.frameTime
@@ -645,7 +645,7 @@ const transcodeFileToMediaSource = async (file) => {
                 chunkFrameId=chunkFrameId+1
                 frameTimes.shift()
                 frameStart=frameEnd
-                frameEnd=frameTimes[0]
+                frameEnd=frameTimes[1]
                 durationFrame=frameEnd-frameStart
                 chunkFrameStart=0;
 
@@ -819,6 +819,8 @@ const transcodeFileToMediaSource = async (file) => {
         var counterDelay=0
     let countEnd=0;
     let inputFileChunk = `/file2.${ext}`
+    let addition=jobs[0].frameTime
+    let additionEnd=0
     console.log(jobs.length)
         while (x<jobs.length)  {
             // if(x && x%3==0  && !flagSeek){
@@ -843,18 +845,18 @@ const transcodeFileToMediaSource = async (file) => {
                 return new Promise(async(resolve,reject)=>{
                 let job = null;
                 promiseRejects.push(resolve)
-                // const onprogress = (ev) => {
-                //     if (!job) return;
-                //     job.progress = ev.progress;
-                //     console.log(`Segment progress: ${job.id} ${job.progress}`);
-                // };
-                // const onlog = (ev) => {
-                //     if (!job) return;
-                //     logDiv.innerHTML = ev.message;
-                //     console.log(`Segment log: ${job.id}`, ev.message);
-                // };
-                // ffmpeg.on('progress', onprogress);
-                // ffmpeg.on('log', onlog);
+                const onprogress = (ev) => {
+                    if (!job) return;
+                    job.progress = ev.progress;
+                    console.log(`Segment progress: ${job.id} ${job.progress}`);
+                };
+                const onlog = (ev) => {
+                    if (!job) return;
+                    logDiv.innerHTML = ev.message;
+                    console.log(`Segment log: ${job.id}`, ev.message);
+                };
+                ffmpeg.on('progress', onprogress);
+                ffmpeg.on('log', onlog);
                 console.log(flagSeek+"-----------------sssaas--------------");
                 //if(job.length>0)
                 job = jobQueue.shift();
@@ -911,6 +913,7 @@ const transcodeFileToMediaSource = async (file) => {
                     // '-err_detect', 'ignore_err',
                        // '-avoid_negative_ts', 'make_zero',
                       //  '-ss', `${job.chunkStart}`,
+                   //   '-avoid_negative_ts', 'make_zero',
 
                         '-i', inputFileChunk,    
                         '-threads','4',
@@ -920,7 +923,7 @@ const transcodeFileToMediaSource = async (file) => {
                         // "-map_metadata", "1",
                         '-an',                
                   //      '-movflags', 'frag_every_frame+empty_moov+default_base_moof', 
-                    //   '-t', `${1}`,
+                       '-t', `${1}`,
                         '-preset', 'ultrafast',
                       //  '-tune','zerolatency',
                         
@@ -945,6 +948,8 @@ const transcodeFileToMediaSource = async (file) => {
 
                 //    '-fflags', '+discardcorrupt', 
                 //    '-err_detect', 'ignore_err',
+            //    '-avoid_negative_ts', 'make_zero',
+
                         '-i', inputFileChunk,   
                         '-threads','4',
 
@@ -956,8 +961,8 @@ const transcodeFileToMediaSource = async (file) => {
                         '-vn',     
                   //      '-movflags', 'frag_every_frame+empty_moov+default_base_moof', 
            
-                   //   '-t', `${1}`,
-                    //   '-tune','zerolatency',
+                  '-t', `${1}`,
+                  //   '-tune','zerolatency',
 
                         '-c:a', 'aac',        
                         '-b:a', '192k',      
@@ -998,7 +1003,31 @@ const transcodeFileToMediaSource = async (file) => {
                 //     dura=4
                 // }
                 hasAudio=true
+                console.log("+1",jobs[job.id+1])
+                console.log("-1",jobs[job.id-1])
+
                 if(hasAudio && job.id!=0 ){
+                    if(jobs[job.id+1].frameTime!=job.frameTime){
+                        additionEnd=job.frameEnd-(job.chunkStart+1)
+                        if(additionEnd<0){
+                            additionEnd=0
+                        }
+                    }
+                    else{
+                        additionEnd=0
+                    }
+                    console.log("addtionEnd",additionEnd)
+                    if(jobs[job.id-1].frameTime!=job.frameTime){
+                        addition=(jobs[job.id-1].chunkStart+1)-jobs[job.id-1].frameEnd
+                        if(addition<0){
+                            addition=0
+                        }
+                    }
+                    else{
+                        addition=0
+                    }
+                    console.log("Addition",addition)
+
                     console.log(" audio.............................")
                     try{
                     await ffmpeg.exec([
@@ -1015,13 +1044,13 @@ const transcodeFileToMediaSource = async (file) => {
                         // '-fflags', '+discardcorrupt', 
                         // '-err_detect', 'ignore_err',
                         //'-copyts',  
-                     //   '-avoid_negative_ts', 'make_zero',
+                        //'-avoid_negative_ts', 'make_zero',
                        // '-ss', `${job.chunkStart}`, 
-                       '-ss',`${job.chunkFrameStart}`,                 
+                       '-ss',`${job.chunkFrameStart+addition}`,                 
  
                        
                       '-i', inputFileChunk, 
-                      '-t', `${job.chunkFrameDuration}`, 
+                      '-t', `${1+additionEnd}`, 
                   //      '-flags', 'low_delay' ,'-vf', 'setpts=0',
                 //   '-i','metadata.txt',
                 //   "-map_metadata", "1",
@@ -1063,15 +1092,16 @@ const transcodeFileToMediaSource = async (file) => {
             //             //'-skip_initial_bytes','10000',
             //             '-probesize','10000000',
          //   '-ss', `${job.chunkStart}`, 
+        // '-avoid_negative_ts', 'make_zero',
 
             //   '-fflags', '+discardcorrupt', 
             //         '-err_detect', 'ignore_err',
             //'-copyts',  
-            '-ss',`${job.chunkFrameStart}`,                 
+           '-ss',`${job.chunkFrameStart+ addition}`,                 
  
                         '-i', inputFileChunk,
                         
-            '-t', `${job.chunkFrameDuration}`,
+           '-t', `${1+additionEnd}`,
                         // '-i','metadata.txt',
                         // "-map_metadata", "1",
                  
@@ -1083,7 +1113,7 @@ const transcodeFileToMediaSource = async (file) => {
                     //                  '-reset_timestamps','1', 
                      //  '-t', `${1}`,
 
-                        '-map', '0:a', // Assuming '0:a' selects the first audio stream  
+                       '-map', '0:a', // Assuming '0:a' selects the first audio stream  
                         '-vn',    
                       //  '-movflags', 'frag_every_frame+empty_moov+default_base_moof', 
                       //  '-tune','zerolatency',
@@ -1275,8 +1305,8 @@ const transcodeFileToMediaSource = async (file) => {
                 } catch {
                     console.log(job.id,'Error deleting output video');
                  }
-                // ffmpeg.off('progress', onprogress);
-                // ffmpeg.off('log', onlog);
+                ffmpeg.off('progress', onprogress);
+                ffmpeg.off('log', onlog);
                 resolve("OK")
                 }).catch((err)=>{
                     console.log(err);
