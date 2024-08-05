@@ -821,7 +821,7 @@ const transcodeFileToMediaSource = async (file) => {
         var counterDelay=0
     let countEnd=0;
     let inputFileChunk = `/file2.${ext}`
-    let addition=jobs[0].frameTime
+    // let addition=jobs[0].frameTime
     let additionEnd=0
     console.log(jobs.length)
     let addition=jobs[0].frameTime
