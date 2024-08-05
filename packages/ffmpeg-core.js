@@ -3035,6 +3035,7 @@ var createFFmpegCore = (() => {
       function _proc_exit(code) {
        // if (ENVIRONMENT_IS_PTHREAD) return proxyToMainThread(1, 1, code);
         EXITSTATUS = code;
+<<<<<<< HEAD
         for(let i=0;i<threads.length;i++){
           killThread(threads[i])
          }
@@ -3043,6 +3044,15 @@ var createFFmpegCore = (() => {
             __emscripten_thread_exit(threads[i])
             Module["_free"](threads[i])
            }
+=======
+        // for(let i=0;i<threads.length;i++){
+        //   killThread(threads[i])
+        //  }
+        // if (!keepRuntimeAlive()) {
+          // for(let i=0;i<threads.length;i++){
+          //   Module["_free"](threads[i])
+          //  }
+>>>>>>> 69766f9e604119591faad6d7b101fa86eee45b5b
           PThread.terminateAllThreads();
           if (Module["onExit"]) Module["onExit"](code);
           Module["wasmMemory"]=null
@@ -3100,11 +3110,19 @@ var createFFmpegCore = (() => {
         terminateAllThreads__deps: ["$terminateWorker"],
         terminateAllThreads: function () {
           for (var worker of PThread.runningWorkers) {
+<<<<<<< HEAD
           //  terminateWorker(worker)
             worker=null
           }
           for (var worker of PThread.unusedWorkers) {
            // terminateWorker(worker)
+=======
+            terminateWorker(worker)
+            worker=null
+          }
+          for (var worker of PThread.unusedWorkers) {
+            terminateWorker(worker)
+>>>>>>> 69766f9e604119591faad6d7b101fa86eee45b5b
             worker=null
           }
           PThread.unusedWorkers = [];
