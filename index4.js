@@ -696,9 +696,9 @@ const transcodeFileToMediaSource = async (file) => {
         // let interval=undefined;
         videoEl.addEventListener('seeking',(e)=>{
           //  e.preventDefault();
-          if(sourceBuffer.buffered.length>=1 && videoEl.buffered.start(videoEl.buffered.length-1)<=currentTime && videoEl.buffered.end(videoEl.buffered.length-1)>=currentTime){
-            return;
-        }
+        //   if(sourceBuffer.buffered.length>=1 && videoEl.buffered.start(videoEl.buffered.length-1)<=currentTime && videoEl.buffered.end(videoEl.buffered.length-1)>=currentTime){
+        //     return;
+        // }
             seeking=true
             flagSeek=true;
             flagSeek2=true;
@@ -712,10 +712,13 @@ const transcodeFileToMediaSource = async (file) => {
             console.log(currentSeek);
           console.log(videoEl.buffered.start(videoEl.buffered.length-1))
           console.log( videoEl.buffered.end(videoEl.buffered.length-1))
+            for(let m=0;m<videoEl.buffered.length;m++){
 
-          if(sourceBuffer.buffered.length>=1 && videoEl.buffered.start(videoEl.buffered.length-1)<=currentTime && videoEl.buffered.end(videoEl.buffered.length-1)>=currentTime){
-            return;
-        }
+                if(sourceBuffer.buffered.length>=1 && videoEl.buffered.start(m)<=currentTime && videoEl.buffered.end(m)>=currentTime){
+                    currentSeek=e.target.currentTime
+                    break;
+                }
+            }
             // if(sourceBuffer.buffered.length>=1 && videoEl.buffered.start(videoEl.buffered.length-1)<currentSeek && videoEl.buffered.end(videoEl.buffered.length-1)>currentSeek){
             //     return;
             // }
@@ -799,7 +802,13 @@ const transcodeFileToMediaSource = async (file) => {
                 while(g.chunkStart<currentSeek){
                     g=jobQueue.shift();
                 }
-                jobQueue.unshift(jobs[g.id-1])
+                if(g.id!=0){
+                    jobQueue.unshift(jobs[g.id])
+                    jobQueue.unshift(jobs[g.id-1])
+                }
+                else{
+                    jobQueue.unshift(jobs[g.id]) 
+                }
                // e.target.currentTime=g.chunkStart
                // currentSeek=g.chunkStart
                 console.log(jobQueue.length,"..............ddddddddddd");
