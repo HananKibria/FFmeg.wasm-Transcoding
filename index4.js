@@ -643,9 +643,9 @@ const transcodeFileToMediaSource = async (file) => {
             await addObject(db,jobs[index])
           
            // if(flagFrame){
-                await ffmpegs[l].exec(['-ss',`${jobs[index].chunkStart}`,'-i',name,'-threads','4','-t',`${jobs[index].frameTime}`, '-movflags', 'faststart+frag_every_frame+empty_moov+default_base_moof','-c','copy', `output.${ext}`]);
+                await ffmpegs[l].exec(['-ss',`${jobs[index].chunkStart}`,'-i',name,'-threads','4','-t',`${jobs[index].frameTime}`,'-c','copy', `output.${ext}`]);
                 let dataObj=await ffmpegs[l].readFile(`output.${ext}`)
-                console.log(dataObj)
+                // console.log(dataObj)
                 jobs2.outputData=new Uint8Array(dataObj);
                 sizeOFFile+=dataObj.byteLength
                 await addObject(db2,jobs2)
@@ -699,8 +699,11 @@ const transcodeFileToMediaSource = async (file) => {
         // let offsetFile=0
         // console.log(chunkFrameId)
         // for(let f=0;f<chunkFrameId;f++){
-        //   let jobFile=await getObject(db2,f);
-        //   console.log(jobFile)
+        //    let jobFile=await getObject(db2,f);
+        //   // await ffmpegs[0].writeFile("chunk.mkv",new Uint8Array(jobFile.outputData));
+        //   // await ffmpegs[0].exec(['-i',"chunk.mkv","-c","copy","output_chunk.mkv"])
+        //   // let chunkData=await ffmpegs[0].readFile("output_chunk.mkv")
+        //   console.log(jobFile.outputData)
         //   newArray.set(new Uint8Array(jobFile.outputData),offsetFile)
         //   offsetFile=offsetFile+jobFile.outputData.byteLength-1
         // }
