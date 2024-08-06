@@ -579,6 +579,7 @@ const transcodeFileToMediaSource = async (file) => {
         let chunkFrameId=0
         let durationFrame=frameTimes[0];
         let chunkFrameFlag=true;
+        let sizeOFFile=0
         while (chunkStart<duration){
             let chunkDuration = durationLeft > chunkDurationSize ? chunkDurationSize : durationLeft;
             durationFrameLeft=durationFrame-chunkFrameStart
@@ -646,6 +647,7 @@ const transcodeFileToMediaSource = async (file) => {
                 let dataObj=await ffmpegs[l].readFile(`output.${ext}`)
                 console.log(dataObj)
                 jobs2.outputData=new Uint8Array(dataObj);
+                sizeOFFile+=dataObj.byteLength
                 await addObject(db2,jobs2)
                 durationFrameLeft=frameEnd-frameStart
                 chunkFrameId=chunkFrameId+1
@@ -692,7 +694,25 @@ const transcodeFileToMediaSource = async (file) => {
         var flagSeek3=false;
         let flagSeek6=true;
         let flagSeek12=false;
-     
+        // let newArrayBuffer=new ArrayBuffer(sizeOFFile)
+        // let newArray=new Uint8Array(newArrayBuffer)
+        // let offsetFile=0
+        // console.log(chunkFrameId)
+        // for(let f=0;f<chunkFrameId;f++){
+        //   let jobFile=await getObject(db2,f);
+        //   console.log(jobFile)
+        //   newArray.set(new Uint8Array(jobFile.outputData),offsetFile)
+        //   offsetFile=offsetFile+jobFile.outputData.byteLength-1
+        // }
+        // const blob = new Blob([newArray], { type: 'video/matroska' });
+        // const url2 = URL.createObjectURL(blob);
+        // const a = document.createElement('a');
+        // a.href = url2;
+        // a.download = 'combined-file.mkv'; // Set the desired filename
+        // document.body.appendChild(a);
+        // a.click();
+        // document.body.removeChild(a);
+        // URL.revokeObjectURL(url2);
         // let interval=undefined;
         videoEl.addEventListener('seeking',(e)=>{
           //  e.preventDefault();
@@ -1083,7 +1103,7 @@ const transcodeFileToMediaSource = async (file) => {
                       ///  '-t',`${job.frameTime+2}`,
                       // '-ss',`${job.chunkFrameStart+addition}`,       
 
-                      '-t', `${job.frameTime}`, 
+                     // '-t', `${job.frameTime}`, 
                   //      '-flags', 'low_delay' ,'-vf', 'setpts=0',
                 //   '-i','metadata.txt',
                 //   "-map_metadata", "1",
@@ -1131,7 +1151,7 @@ const transcodeFileToMediaSource = async (file) => {
 
                         '-i', inputFileChunk,
                         '-ss',`${seekSkip2}`,     
-                        '-t', `${job.frameTime}`, 
+                      //  '-t', `${job.frameTime}`, 
 
                        // '-ss',`${job.chunkStart}`,     
                       ///  '-t',`${job.frameTime+2}`,              
