@@ -213,7 +213,7 @@ const getMetadata = inputFile => {
       }
       ffmpeg.on('log', metadataLogger)
       ffmpegs[0].exec(['-i', inputFile,'-threads','4', '-vf', 'select=eq(pict_type\\,I)',
-        '-vsync', 'vfr',
+        '-vsync', 'cfr',
         '-frame_pts', 'true', '-f', 'null', '-'],undefined,{signal})
     })
   }
@@ -295,8 +295,12 @@ const getDuration = async inputFile => {
     if (match && match[1]) {
       const duration = match[1]
       const durationInSeconds = durationToSeconds(duration)
+      const regex = /frame=\s*(\d+)/g;
+
+// Match the pattern and extract frame numbers
+const frameNumbers = [...metadata.matchAll(regex)].map(match => parseInt(match[1]));
       //consoel.log('Duration in seconds:', durationInSeconds)
-      return [toFixed(durationInSeconds, 2), endTime,totalBytes,bitrate,frameTimes]
+      return [toFixed(durationInSeconds, 2), endTime,totalBytes,bitrate,frameTimes,frameNumbers]
     } else {
       //consoel.log('Duration not found')
     }
@@ -358,7 +362,7 @@ const transcodeFileToMediaSource = async (file) => {
     // const fileBuffer = new Uint8Array(await fetchFile(fileUrl,0, 100000)); // Example range, modify as needed
     // console.log(fileBuffer)
     // await ffmpegs[0].writeFile(inputFile, new Uint8Array(await fetchFile(fileUrl,0, 100000)) );
-    var [duration,durationChunk,bytes,bitrate,frameTimes] = await getDuration(name);
+    var [duration,durationChunk,bytes,bitrate,frameTimes,frameNumbers] = await getDuration(name);
   //  ffmpegs.shift()
     // let duration=1700
     // let durationChunk=1
@@ -462,7 +466,7 @@ const transcodeFileToMediaSource = async (file) => {
             URL.revokeObjectURL(mediaSourceURL);
             mediaSource.duration = duration
             sourceBuffer = mediaSource.addSourceBuffer(mimeCodec);
-            sourceBuffer.mode = 'segments';
+            sourceBuffer.mode = 'sequence';
             sourceBuffer.appendWindowStart=0;
             sourceBuffer.appendWindowEnd=duration;
             let flagSeek11=true;
@@ -498,12 +502,12 @@ const transcodeFileToMediaSource = async (file) => {
 
                  }
                 //}
-                if(!flagSeek4 && !seekII){
+                if(!flagSeek4){
                     var job = await getCompletedJob(ii++);
                 }
-                if (!job && !flagSeek2 && !seekII ) {
+                if (!job && !flagSeek2  ) {
                     mediaSource.endOfStream();
-                } else  if (!sourceBuffer.updating && job!=undefined && job!=null && (!flagSeek2 || job.id===index2 ) &&!seekII && job.outputData!=null )  {
+                } else  if (!sourceBuffer.updating && job!=undefined && job!=null && (!flagSeek2 || job.id===index2 ) && job.outputData!=null )  {
                 //     if(!flagSeek8 && !flagSeek11){
                 //         videoEl.currentTime=job.chunkStart-1 +0.01
                     
@@ -522,7 +526,12 @@ const transcodeFileToMediaSource = async (file) => {
                 //     frameTimes.shift();
                     //}
                   // if(!flagSeek2){
-                        sourceBuffer.timestampOffset=job.chunkStart
+                   if(job.id===index2){
+                    sourceBuffer.timestampOffset=job.chunkStart
+                  }
+                  else{
+                    sourceBuffer.timestampOffset=sourceBuffer.buffered.end(0)
+                  }   
 
                     //}
                     // else{
@@ -580,7 +589,13 @@ const transcodeFileToMediaSource = async (file) => {
         let durationFrame=frameTimes[0];
         let chunkFrameFlag=true;
         let sizeOFFile=0
-        while (chunkStart<duration){
+        let numFrame=0
+        let diff=frameNumbers[0]
+        let flagEndPart=false
+        while (chunkStart<=duration && !flagEndPart){
+          if(frameNumbers.length===1){
+            flagEndPart=true
+          }
             let chunkDuration = durationLeft > chunkDurationSize ? chunkDurationSize : durationLeft;
             durationFrameLeft=durationFrame-chunkFrameStart
 
@@ -604,7 +619,8 @@ const transcodeFileToMediaSource = async (file) => {
                 frameEnd:frameEnd,
                 chunkFrameStart:toFixed(chunkFrameStart,2),
                 chunkFrameDuration:toFixed(chunkFrameDuration,2),
-                chunkFrameId:chunkFrameId
+                chunkFrameId:chunkFrameId,
+                numFrame:frameNumbers[0]
             });
             
             chunkFrameStart+=chunkFrameDuration
@@ -617,7 +633,6 @@ const transcodeFileToMediaSource = async (file) => {
            if(chunkFrameStart>=frameEnd){
             flagFrame=true
            }
-
             // if(index===0){
             //     jobs[0].chunkDuration=durationChunk
             //     chunkDuration=durationChunk
@@ -638,20 +653,29 @@ const transcodeFileToMediaSource = async (file) => {
             //     jobs2[0].chunkDuration=durationChunk
             //     chunkDuration=durationChunk
             // }
+            console.log(frameNumbers)
             console.log(frameTimes)
             console.log(jobs[index])
             await addObject(db,jobs[index])
           
            // if(flagFrame){
-                await ffmpegs[l].exec(['-ss',`${jobs[index].chunkStart}`,'-i',name,'-threads','4','-t',`${jobs[index].frameTime}`,'-c','copy',`output.mp4`]);
-                let dataObj=await ffmpegs[l].readFile(`output.mp4`)
+                await ffmpegs[l].exec(['-ss',`${jobs[index].chunkStart}`,'-i',name,'-threads','4', '-vsync', 'cfr','-frames:v',`${diff+15}`,'-t',`${jobs[index].frameTime}`,'-c','copy',`output.${ext}`]);
+                let dataObj=await ffmpegs[l].readFile(`output.${ext}`)
                 // console.log(dataObj)
                 jobs2.outputData=new Uint8Array(dataObj);
                 sizeOFFile+=dataObj.byteLength
                 await addObject(db2,jobs2)
                 durationFrameLeft=frameEnd-frameStart
                 chunkFrameId=chunkFrameId+1
+                if(frameNumbers.length>1){
+                  diff=frameNumbers[1]-frameNumbers[0]
+
+                }
+                else{
+                  diff=frameNumbers[0]
+                }
                 frameTimes.shift()
+                frameNumbers.shift()
                 frameStart=frameEnd
                 frameEnd=frameTimes[0]
                 durationFrame=frameEnd-frameStart
@@ -685,6 +709,9 @@ const transcodeFileToMediaSource = async (file) => {
            
         }
         var currentSeek=0;
+        let jobStart={id:chunkFrameId,outputData:(await fetchFile(fileUrl,0,50000))}
+
+        await addObject(db2,jobStart)
         // let currentSeek=chunkStart;
         // let flagSeek=false;
        // let flagSeek=false;
@@ -698,28 +725,32 @@ const transcodeFileToMediaSource = async (file) => {
         var flagSeek3=false;
         let flagSeek6=true;
         let flagSeek12=false;
-        let newArrayBuffer=new ArrayBuffer(sizeOFFile)
-        let newArray=new Uint8Array(newArrayBuffer)
-        let offsetFile=0
-        console.log(chunkFrameId)
-        for(let f=0;f<chunkFrameId;f++){
-           let jobFile=await getObject(db2,f);
-          // await ffmpegs[0].writeFile("chunk.mkv",new Uint8Array(jobFile.outputData));
-          //await ffmpegs[0].exec(['-i',"chunk.mkv","-c","copy","output_chunk.mkv"])
-          // let chunkData=await ffmpegs[0].readFile("output_chunk.mkv")
-          console.log(jobFile.outputData)
-          newArray.set(new Uint8Array(jobFile.outputData),offsetFile)
-          offsetFile=offsetFile+jobFile.outputData.byteLength-1
-        }
-        const blob = new Blob([newArray], { type: 'video/mp4' });
-        const url2 = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url2;
-        a.download = 'combined-file.mp4'; // Set the desired filename
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url2);
+        // let newArrayBuffer=new ArrayBuffer(sizeOFFile)
+        // let newArray=new Uint8Array(newArrayBuffer)
+        // let offsetFile=0
+        // console.log(chunkFrameId)
+        // for(let f=0;f<chunkFrameId;f++){
+        
+        //    let jobFile=await getObject(db2,f);
+        //   await ffmpegs[0].writeFile("chunk.mkv",new Uint8Array(jobFile.outputData));
+        //   await ffmpegs[0].exec(['-i',"chunk.mkv","-c","copy",'-map_metadata','-1',"output_chunk.mkv"])
+        // let chunkData=await ffmpegs[0].readFile("output_chunk.mkv")
+        // // if(f===0){
+        // //     chunkData=await getObject(db2,chunkFrameId)
+        // // }
+        //   console.log(chunkData)
+        //   newArray.set(new Uint8Array(chunkData),offsetFile)
+        //   offsetFile=offsetFile+chunkData.byteLength
+        // }
+        // const blob = new Blob([newArray], { type: 'video/matroska' });
+        // const url2 = URL.createObjectURL(blob);
+        // const a = document.createElement('a');
+        // a.href = url2;
+        // a.download = 'combined-file.mkv'; // Set the desired filename
+        // document.body.appendChild(a);
+        // a.click();
+        // document.body.removeChild(a);
+        // URL.revokeObjectURL(url2);
         // let interval=undefined;
         videoEl.addEventListener('seeking',(e)=>{
           //  e.preventDefault();
@@ -743,7 +774,7 @@ const transcodeFileToMediaSource = async (file) => {
 
                 if(sourceBuffer.buffered.length>=1 && videoEl.buffered.start(m)<=currentTime && videoEl.buffered.end(m)>=currentTime){
                     currentSeek=e.target.currentTime
-                    break;
+                    return;
                 }
             }
             // if(sourceBuffer.buffered.length>=1 && videoEl.buffered.start(videoEl.buffered.length-1)<currentSeek && videoEl.buffered.end(videoEl.buffered.length-1)>currentSeek){
@@ -851,7 +882,7 @@ const transcodeFileToMediaSource = async (file) => {
                 ii=index2
                 flagRemoval=true
                // mediaSource.dispatchEvent(new Event("sourceopen"))
-               //sourceBuffer.buffered.length>=1  &&  sourceBuffer.remove(sourceBuffer.buffered.start(0),sourceBuffer.buffered.end(0))
+               sourceBuffer.buffered.length>=1  &&  sourceBuffer.remove(sourceBuffer.buffered.start(0),sourceBuffer.buffered.end(0))
                 //videoEl.play();
            
         })
@@ -949,7 +980,7 @@ const transcodeFileToMediaSource = async (file) => {
             //    console.log(typedArray)
                let inputChunkFile=`file_${job.id}.webm`
                let z=(await getObject(db2,job.chunkFrameId)).outputData
-               console.log(z);
+               //console.log(z);
                 await ffmpeg.writeFile(inputFileChunk,new Uint8Array(z));
                 // await ffmpeg.exec([ '-loglevel',
                 //         'debug','-skip_initial_bytes','1000','-i',inputChunkFile,'-i','metadata.txt','-map_metadata','1','-c','copy',inputFileChunk])
@@ -1109,8 +1140,9 @@ const transcodeFileToMediaSource = async (file) => {
                       '-ss',`${seekSkip2}`,     
                       ///  '-t',`${job.frameTime+2}`,
                       // '-ss',`${job.chunkFrameStart+addition}`,       
-
                      // '-t', `${job.frameTime}`, 
+
+                      '-t', `${job.frameTime}`, 
                   //      '-flags', 'low_delay' ,'-vf', 'setpts=0',
                 //   '-i','metadata.txt',
                 //   "-map_metadata", "1",
@@ -1157,8 +1189,9 @@ const transcodeFileToMediaSource = async (file) => {
             //'-copyts',  
 
                         '-i', inputFileChunk,
-                        '-ss',`${seekSkip2}`,     
+                      '-ss',`${seekSkip2}`,     
                       //  '-t', `${job.frameTime}`, 
+                     '-t', `${job.frameTime}`, 
 
                        // '-ss',`${job.chunkStart}`,     
                       ///  '-t',`${job.frameTime+2}`,              
