@@ -694,28 +694,28 @@ const transcodeFileToMediaSource = async (file) => {
         var flagSeek3=false;
         let flagSeek6=true;
         let flagSeek12=false;
-        // let newArrayBuffer=new ArrayBuffer(sizeOFFile)
-        // let newArray=new Uint8Array(newArrayBuffer)
-        // let offsetFile=0
-        // console.log(chunkFrameId)
-        // for(let f=0;f<chunkFrameId;f++){
-        //    let jobFile=await getObject(db2,f);
-        //   // await ffmpegs[0].writeFile("chunk.mkv",new Uint8Array(jobFile.outputData));
-        //   // await ffmpegs[0].exec(['-i',"chunk.mkv","-c","copy","output_chunk.mkv"])
-        //   // let chunkData=await ffmpegs[0].readFile("output_chunk.mkv")
-        //   console.log(jobFile.outputData)
-        //   newArray.set(new Uint8Array(jobFile.outputData),offsetFile)
-        //   offsetFile=offsetFile+jobFile.outputData.byteLength-1
-        // }
-        // const blob = new Blob([newArray], { type: 'video/matroska' });
-        // const url2 = URL.createObjectURL(blob);
-        // const a = document.createElement('a');
-        // a.href = url2;
-        // a.download = 'combined-file.mkv'; // Set the desired filename
-        // document.body.appendChild(a);
-        // a.click();
-        // document.body.removeChild(a);
-        // URL.revokeObjectURL(url2);
+        let newArrayBuffer=new ArrayBuffer(sizeOFFile)
+        let newArray=new Uint8Array(newArrayBuffer)
+        let offsetFile=0
+        console.log(chunkFrameId)
+        for(let f=0;f<chunkFrameId;f++){
+           let jobFile=await getObject(db2,f);
+          // await ffmpegs[0].writeFile("chunk.mkv",new Uint8Array(jobFile.outputData));
+          //await ffmpegs[0].exec(['-i',"chunk.mkv","-c","copy","output_chunk.mkv"])
+          // let chunkData=await ffmpegs[0].readFile("output_chunk.mkv")
+          console.log(jobFile.outputData)
+          newArray.set(new Uint8Array(jobFile.outputData),offsetFile)
+          offsetFile=offsetFile+jobFile.outputData.byteLength-1
+        }
+        const blob = new Blob([newArray], { type: 'video/matroska' });
+        const url2 = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url2;
+        a.download = 'combined-file.mkv'; // Set the desired filename
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url2);
         // let interval=undefined;
         videoEl.addEventListener('seeking',(e)=>{
           //  e.preventDefault();
@@ -1071,7 +1071,7 @@ const transcodeFileToMediaSource = async (file) => {
                    addition=0
               }
               let seekSkip2=0;
-              if(job.id===1){
+              if(job.chunkFrameStart===0){
                 seekSkip2=jobs[0].frameTime
               }
               if(job.id===index2 && job.id!=0){
