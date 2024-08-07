@@ -643,8 +643,8 @@ const transcodeFileToMediaSource = async (file) => {
             await addObject(db,jobs[index])
           
            // if(flagFrame){
-                await ffmpegs[l].exec(['-ss',`${jobs[index].chunkStart}`,'-i',name,'-threads','4','-t',`${jobs[index].frameTime}`,'-c','copy', `output.${ext}`]);
-                let dataObj=await ffmpegs[l].readFile(`output.${ext}`)
+                await ffmpegs[l].exec(['-ss',`${jobs[index].chunkStart}`,'-i',name,'-threads','4','-t',`${jobs[index].frameTime}`,'-c','copy',`output.mp4`]);
+                let dataObj=await ffmpegs[l].readFile(`output.mp4`)
                 // console.log(dataObj)
                 jobs2.outputData=new Uint8Array(dataObj);
                 sizeOFFile+=dataObj.byteLength
@@ -653,11 +653,15 @@ const transcodeFileToMediaSource = async (file) => {
                 chunkFrameId=chunkFrameId+1
                 frameTimes.shift()
                 frameStart=frameEnd
-                frameEnd=frameTimes[1]
+                frameEnd=frameTimes[0]
                 durationFrame=frameEnd-frameStart
                 chunkFrameStart=0;
 
-                
+                // console.log(sizeOFFile)
+                // console.log(filesize)
+                // if(sizeOFFile>=filesize*3){
+                //   break;
+                // }
 
             //}
 
@@ -707,11 +711,11 @@ const transcodeFileToMediaSource = async (file) => {
           newArray.set(new Uint8Array(jobFile.outputData),offsetFile)
           offsetFile=offsetFile+jobFile.outputData.byteLength-1
         }
-        const blob = new Blob([newArray], { type: 'video/matroska' });
+        const blob = new Blob([newArray], { type: 'video/mp4' });
         const url2 = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url2;
-        a.download = 'combined-file.mkv'; // Set the desired filename
+        a.download = 'combined-file.mp4'; // Set the desired filename
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
@@ -984,7 +988,7 @@ const transcodeFileToMediaSource = async (file) => {
                         
 
                         '-c:v', 'libx264',
-                        '-crf', '23',
+                        '-crf', '30',
 //'-force_key_frames', 'expr:gte(t,n_forced*1)',                 //    '-fflags', 'nobuffer',
                         `/temp_video_${job.id}.mp4`,     
                     ],undefined,{signal});
@@ -1125,7 +1129,7 @@ const transcodeFileToMediaSource = async (file) => {
                         '-c:v', 'libx264',  
                        // '-vf' ,'"scale=trunc(iw/2)*2:trunc(ih/2)*2"', 
 
-                        '-crf', '23', 
+                        '-crf', '30', 
                      //   '-reset_timestamps','1',  
                     //    '-g','10',
                         //'-fflags', 'nobuffer', '-flags', 'low_delay',    
