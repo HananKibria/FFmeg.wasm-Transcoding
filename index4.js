@@ -351,7 +351,7 @@ const transcodeFileToMediaSource = async (file) => {
     // await ffmpeg.exec([ '-i',name ,'-f','ffmetadata' ,'metadata.txt'])
 
     
-    let filesize=await getFileSize(fileUrl);
+    let filesize=100000
     console.log(filesize)
     let result = new SharedArrayBuffer(filesize +100000)
      
