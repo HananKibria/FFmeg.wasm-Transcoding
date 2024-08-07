@@ -659,9 +659,9 @@ const transcodeFileToMediaSource = async (file) => {
             await addObject(db,jobs[index])
           
            // if(flagFrame){
-                await ffmpegs[l].exec(['-ss',`${jobs[index].chunkStart}`,'-i',name,'-threads','4', '-vsync', 'cfr','-frames:v',`${diff+15}`,'-t',`${jobs[index].frameTime}`,'-c','copy',`output.${ext}`]);
+                await ffmpegs[l].exec(['-ss',`${jobs[index].chunkStart}`,'-i',name,'-threads','4', '-vsync', 'cfr','-frames:v',`${diff+12}`,'-t',`${jobs[index].frameTime}`,'-c','copy',`output.${ext}`]);
                 let dataObj=await ffmpegs[l].readFile(`output.${ext}`)
-                // console.log(dataObj)
+                console.log(dataObj)
                 jobs2.outputData=new Uint8Array(dataObj);
                 sizeOFFile+=dataObj.byteLength
                 await addObject(db2,jobs2)
@@ -768,11 +768,11 @@ const transcodeFileToMediaSource = async (file) => {
     
         videoEl.addEventListener('seeked',async (e)=>{
             console.log(currentSeek);
-          console.log(videoEl.buffered.start(videoEl.buffered.length-1))
-          console.log( videoEl.buffered.end(videoEl.buffered.length-1))
+          // console.log(videoEl.buffered.start(videoEl.buffered.length-1))
+          // console.log( videoEl.buffered.end(videoEl.buffered.length-1))
             for(let m=0;m<videoEl.buffered.length;m++){
 
-                if(sourceBuffer.buffered.length>=1 && videoEl.buffered.start(m)<=currentTime && videoEl.buffered.end(m)>=currentTime){
+                if(videoEl.buffered.length>=1 && videoEl.buffered.start(m)<=currentTime && videoEl.buffered.end(m)>=currentTime){
                     currentSeek=e.target.currentTime
                     return;
                 }
