@@ -609,8 +609,8 @@ const transcodeFileToMediaSource = async (file) => {
             let chunkDuration = durationLeft > chunkDurationSize ? chunkDurationSize : durationLeft;
             durationFrameLeft=durationFrame-chunkFrameStart
 
-            chunkFrameDuration=durationFrameLeft>10 ?10:durationFrameLeft
-            chunkFrameFlag=durationFrameLeft>10 ?false:true
+            chunkFrameDuration=durationFrameLeft>5 ?5:durationFrameLeft
+            chunkFrameFlag=durationFrameLeft>5 ?false:true
             if(chunkFrameDuration<0){
                 chunkFrameDuration=chunkFrameDuration*-1
             }
