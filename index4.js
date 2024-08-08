@@ -212,7 +212,7 @@ const getMetadata = inputFile => {
         
       }
       ffmpeg.on('log', metadataLogger)
-      ffmpegs[0].exec(['-i', inputFile,'-threads','4', '-vf', 'select=eq(pict_type\\,I)',
+      ffmpegs[0].exec(['-i', inputFile,'-threads','4', '-c','copy',
         '-vsync', 'cfr',
         '-frame_pts', 'true', '-f', 'null', '-'],undefined,{signal})
     })
@@ -593,14 +593,22 @@ const transcodeFileToMediaSource = async (file) => {
         let diff=frameNumbers[0]
         let flagEndPart=false
         while (chunkStart<=duration && !flagEndPart){
+          if(frameTimes[0]===0){
+            diff=frameNumbers[1]+ frameNumbers[0]
+            frameNumbers.shift()
+            frameTimes.shift()
+            durationFrameLeft=frameTimes[0]
+            durationFrame=frameTimes[0]
+            frameEnd=frameTimes[0]
+          }
           if(frameNumbers.length===1){
             flagEndPart=true
           }
             let chunkDuration = durationLeft > chunkDurationSize ? chunkDurationSize : durationLeft;
             durationFrameLeft=durationFrame-chunkFrameStart
 
-            chunkFrameDuration=durationFrameLeft>1 ?1:durationFrameLeft
-            chunkFrameFlag=durationFrameLeft>1 ?false:true
+            chunkFrameDuration=durationFrameLeft>10 ?10:durationFrameLeft
+            chunkFrameFlag=durationFrameLeft>10 ?false:true
             if(chunkFrameDuration<0){
                 chunkFrameDuration=chunkFrameDuration*-1
             }
@@ -622,6 +630,11 @@ const transcodeFileToMediaSource = async (file) => {
                 chunkFrameId:chunkFrameId,
                 numFrame:frameNumbers[0]
             });
+            
+            // if(jobs[index].frameTime===0){
+            //   jobs[0].frameTime=1
+            // }
+
             
             chunkFrameStart+=chunkFrameDuration
             
@@ -658,13 +671,14 @@ const transcodeFileToMediaSource = async (file) => {
             console.log(jobs[index])
             await addObject(db,jobs[index])
           
-           // if(flagFrame){
-                await ffmpegs[l].exec(['-ss',`${jobs[index].chunkStart}`,'-t',`${jobs[index].frameTime}`,'-i',name,'-threads','4', '-vsync', 'cfr','-frames:v',`${diff+12}`,'-c','copy',`output.${ext}`]);
+            if(flagFrame){
+                await ffmpegs[l].exec(['-ss',`${jobs[index].chunkStart}`,'-t',`${jobs[index].frameTime}`,'-i',name,'-threads','4', '-vsync', 'cfr','-frames:v',`${diff+15}`,'-c','copy',`output.${ext}`]);
                 let dataObj=await ffmpegs[l].readFile(`output.${ext}`)
                 console.log(dataObj)
                 jobs2.outputData=new Uint8Array(dataObj);
                 sizeOFFile+=dataObj.byteLength
                 await addObject(db2,jobs2)
+                if(chunkFrameStart>=frameEnd){
                 durationFrameLeft=frameEnd-frameStart
                 chunkFrameId=chunkFrameId+1
                 if(frameNumbers.length>1){
@@ -674,23 +688,24 @@ const transcodeFileToMediaSource = async (file) => {
                 else{
                   diff=frameNumbers[0]
                 }
+
                 frameTimes.shift()
                 frameNumbers.shift()
                 frameStart=frameEnd
                 frameEnd=frameTimes[0]
                 durationFrame=frameEnd-frameStart
                 chunkFrameStart=0;
-
+              }
                 // console.log(sizeOFFile)
                 // console.log(filesize)
                 // if(sizeOFFile>=filesize*3){
                 //   break;
                 // }
 
-            //}
+            }
 
            flagFrame=false;
-            chunkStart = jobs[index].frameTime;
+            chunkStart =chunkStart+chunkFrameDuration;
        //     if(chunkStart<0){chunkStart=0}
             durationLeft=duration-chunkDuration+chunkDurationSize
             startByte=endByte;
@@ -1013,7 +1028,7 @@ const transcodeFileToMediaSource = async (file) => {
                         '-an',                
                         //'-movflags', 'frag_every_frame+empty_moov+default_base_moof', 
                      // '-t', `${2}`,
-                     '-t', `${job.frameTime}`, 
+                     '-t', `${job.chunkFrameDuration}`, 
                         '-preset', 'ultrafast',
                       //  '-tune','zerolatency',
                         
@@ -1048,7 +1063,7 @@ const transcodeFileToMediaSource = async (file) => {
                         // Assuming '0:a' selects the first audio stream  
                         '-vn',     
                   //      '-movflags', 'frag_every_frame+empty_moov+default_base_moof', 
-                  '-t', `${job.frameTime}`, 
+                  '-t', `${job.chunkFrameDuration}`, 
                     //  '-t', `${1}`,
                     //   '-tune','zerolatency',
 
@@ -1106,7 +1121,7 @@ const transcodeFileToMediaSource = async (file) => {
                    addition=0
               }
               let seekSkip2=0;
-              if(job.chunkFrameStart===0){
+              if(job.chunkFrameStart===0 && job.frameTime<1){
                 seekSkip2=jobs[0].frameTime
               }
               if(job.id===index2 && job.id!=0){
@@ -1137,12 +1152,10 @@ const transcodeFileToMediaSource = async (file) => {
                        // '-ss', `${job.chunkStart}`, 
  
                       '-i', inputFileChunk, 
-                      '-ss',`${seekSkip2}`,     
-                      ///  '-t',`${job.frameTime+2}`,
-                      // '-ss',`${job.chunkFrameStart+addition}`,       
-                     // '-t', `${job.frameTime}`, 
+                      '-ss',`${job.chunkFrameStart+seekSkip2}`,     
+                      //  '-t', `${job.frameTime}`, 
+                     '-t', `${job.chunkFrameDuration}`, 
 
-                      '-t', `${job.frameTime}`, 
                   //      '-flags', 'low_delay' ,'-vf', 'setpts=0',
                 //   '-i','metadata.txt',
                 //   "-map_metadata", "1",
@@ -1189,9 +1202,9 @@ const transcodeFileToMediaSource = async (file) => {
             //'-copyts',  
 
                         '-i', inputFileChunk,
-                      '-ss',`${seekSkip2}`,     
+                      '-ss',`${job.chunkFrameStart+seekSkip2}`,     
                       //  '-t', `${job.frameTime}`, 
-                     '-t', `${job.frameTime}`, 
+                     '-t', `${job.chunkFrameDuration}`, 
 
                        // '-ss',`${job.chunkStart}`,     
                       ///  '-t',`${job.frameTime+2}`,              
