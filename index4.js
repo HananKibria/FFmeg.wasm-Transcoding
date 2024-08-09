@@ -678,7 +678,14 @@ const transcodeFileToMediaSource = async (file) => {
             await addObject(db,jobs[index])
           
             if(flagFrame){
+              if(index===0){
                 await ffmpegs[l].exec(['-ss',`${jobs[index].startTimeFrame}`,'-t',`${jobs[index].frameTime}`,'-i',name,'-threads','4', '-vsync', 'cfr','-frames:v',`${diff+15}`,'-c','copy',`output.${ext}`]);
+
+              }
+              else{
+                await ffmpegs[l].exec(['-ss',`${jobs[index].startTimeFrame}`,'-t',`${jobs[index].frameTime}`,'-i',name,'-threads','4', '-vsync', 'cfr','-frames:v',`${diff+2}`,'-c','copy',`output.${ext}`]);
+
+              }
                 let dataObj=await ffmpegs[l].readFile(`output.${ext}`)
                 console.log(dataObj)
                 jobs2.outputData=new Uint8Array(dataObj);
