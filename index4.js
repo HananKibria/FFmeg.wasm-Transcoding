@@ -393,7 +393,7 @@ const transcodeFileToMediaSource = async () => {
                     mediaSource.endOfStream();
                 } else  if (!sourceBuffer.updating && !flagSeek2 &&!seekII )  {
                    // if(flagSeek8){
-                        sourceBuffer.timestampOffset=job.chunkStart;
+                        sourceBuffer.timestampOffset=source.buffered.end(0);
                       //  flagSeek8=false;
                     //}
                    // else{
