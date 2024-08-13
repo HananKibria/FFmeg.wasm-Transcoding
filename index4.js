@@ -687,7 +687,7 @@ const transcodeFileToMediaSource = async (file) => {
 
               }
                 let dataObj=await ffmpegs[l].readFile(`output.${ext}`)
-                console.log(dataObj)
+                // console.log(dataObj)
                 jobs2.outputData=new Uint8Array(dataObj);
                 sizeOFFile+=dataObj.byteLength
                 await addObject(db2,jobs2)
@@ -757,20 +757,99 @@ const transcodeFileToMediaSource = async (file) => {
         // let newArrayBuffer=new ArrayBuffer(sizeOFFile)
         // let newArray=new Uint8Array(newArrayBuffer)
         // let offsetFile=0
-        // console.log(chunkFrameId)
-        // for(let f=0;f<chunkFrameId;f++){
-        
-        //    let jobFile=await getObject(db2,f);
-        //   await ffmpegs[0].writeFile("chunk.mkv",new Uint8Array(jobFile.outputData));
-        //   await ffmpegs[0].exec(['-i',"chunk.mkv","-c","copy",'-map_metadata','-1',"output_chunk.mkv"])
-        // let chunkData=await ffmpegs[0].readFile("output_chunk.mkv")
-        // // if(f===0){
-        // //     chunkData=await getObject(db2,chunkFrameId)
-        // // }
-        //   console.log(chunkData)
-        //   newArray.set(new Uint8Array(chunkData),offsetFile)
-        //   offsetFile=offsetFile+chunkData.byteLength
+        console.log(chunkFrameId)
+        let inputPaths=[]
+        // await ffmpegs[0].createDir(`output`)
+     const root = await navigator.storage.getDirectory();
+ // currentDirHandle.getDirectoryHandle(dirName, { create: true });
+        let outputFiles=[]
+        for(let f=0;f<chunkFrameId;f++){
+          let chunkData;
+           let jobFile=await getObject(db2,f);
+          inputPaths.push(`file /output/file_${f}.mkv`)
+          let outputFile=`file_${f}.mkv`
+          const fileHandle = await root.getFileHandle(outputFile, { create: true });
+          const writable = await fileHandle.createWritable();
+         await writable.write(jobFile.outputData.buffer)
+          await writable.close()
+          outputFiles.push(await fileHandle.getFile())
+          console.log(f)
+          //  const blob = new Blob([jobFile.outputData], { type: 'video/matroska' });
+          // const FileChunk=new File([blob],`file_${f}.mkv`,{type:'video/matroska'});
+          // console.log(FileChunk)
+          // await ffmpegs[0].mount('WORKERFS', { files: [FileChunk] }, `output`)
+          // if(f!=0 && f!=chunkFrameId-1){
+      //     await ffmpegs[0].writeFile("chunk.mkv",new Uint8Array(jobFile.outputData));
+      //     await ffmpegs[0].exec(['-i',"chunk.mkv","-c","copy",'-f','rawvideo', "output_chunk.raw"])
+      // chunkData=await ffmpegs[0].readFile("output_chunk.raw")
+          //  }
+          //  else{
+          //   await ffmpegs[0].writeFile("chunk.mkv",new Uint8Array(jobFile.outputData));
+          //   chunkData=await ffmpegs[0].readFile("chunk.mkv")
+          //  }
+        // if(f===0){
+        //     chunkData=await getObject(db2,chunkFrameId)
         // }
+         // console.log(chunkData)
+  //        newArray.set(new Uint8Array(chunkData),offsetFile)
+      //    offsetFile=offsetFile+chunkData.byteLength
+        }
+        console.log("ghj")
+        await ffmpegs[0].createDir(`output`)
+        await ffmpegs[0].mount('WORKERFS', { files: outputFiles}, `output`)
+        await ffmpegs[0].writeFile('concat_list.txt', inputPaths.join('\n'));
+        await ffmpegs[0].exec(['-f', 'concat', '-safe', '0', '-i', 'concat_list.txt','-c','copy', `output_-1.mkv`]);
+        console.log("Abc");
+        let chunkData=await ffmpegs[0].readFile("output_-1.mkv")
+        console.log(chunkData)
+        const stream = new ReadableStream({
+        async start(controller) {
+          let outputFile
+          //try{
+          //   outputFile = await ffmpegs[0].open("output.mkv",'r');
+
+          // }
+          // catch(err){
+          //   console.log(err)
+          // }
+          //   console.log(outputFile)
+            const CHUNK_SIZE = 1024 * 1024; // 1MB chunk size
+            let position = 0;
+      
+            async function push() {
+              // let chunk=new SharedArrayBuffer(CHUNK_SIZE)
+              let chunk2=new Uint8Array(CHUNK_SIZE)
+              try{
+               var {bytesRead,chunk} =await ffmpegs[0].read("output_-1.mkv",chunk2, 0, CHUNK_SIZE, position);
+              }
+              catch(err){
+                console.log(err)
+              }
+              // console.log(chunk)
+              if (bytesRead > 0) {
+                position += bytesRead;
+                controller.enqueue(chunk.slice(0, bytesRead));
+                await push();
+              } else {
+                controller.close();
+              }
+            }
+      
+            await push();
+          }
+        });
+        const response = new Response(stream);
+        const blob2 = await response.blob();
+        const url2 = URL.createObjectURL(blob2);
+        const a2 = document.createElement('a');
+        a2.href = url2;
+        a2.download = 'outputFile.mkv';
+        document.body.appendChild(a2);
+        a2.click();
+        document.body.removeChild(a2);
+        URL.revokeObjectURL(url2);
+
+
         // const blob = new Blob([newArray], { type: 'video/matroska' });
         // const url2 = URL.createObjectURL(blob);
         // const a = document.createElement('a');

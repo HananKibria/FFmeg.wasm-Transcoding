@@ -864,6 +864,11 @@ var createFFmpegCore = (() => {
             stream.tty.ops.fsync(stream.tty)
           },
           read: function (stream, buffer, offset, length, pos) {
+            if(typeof(stream)==="string")
+              {
+                console.log("321")
+                stream=FS.open(stream,0)
+              }
             if (!stream.tty || !stream.tty.ops.get_char) {
               throw new FS.ErrnoError(60)
             }
@@ -1193,6 +1198,11 @@ var createFFmpegCore = (() => {
         },
         stream_ops: {
           read: function (stream, buffer, offset, length, position) {
+            if(typeof(stream)==="string")
+              {
+                console.log("123");
+                stream=FS.open(stream,0)
+              }
             var contents = stream.node.contents;
             if (position >= stream.node.usedBytes) return 0;
             var size = Math.min(stream.node.usedBytes - position, length);
@@ -1485,6 +1495,11 @@ var createFFmpegCore = (() => {
         },
         stream_ops: {
           read: function (stream, buffer, offset, length, position) {
+            if(typeof(stream)==="string")
+              {
+                console.log("456")
+                stream=FS.open(stream,0)
+              }
             if (position >= stream.node.size) return 0;
             var chunk = stream.node.contents.slice(position, position + length);
             var ab = WORKERFS.reader.readAsArrayBuffer(chunk);
@@ -2363,6 +2378,15 @@ var createFFmpegCore = (() => {
           return stream.position
         },
         read: (stream, buffer, offset, length, position) => {
+          let flagString=false
+          if(typeof(stream)==="string")
+            {
+              flagString=true
+              console.log("789")
+              stream=FS.open(stream,0)
+              console.log(buffer)
+              // buffer=new Uint8Array(length)
+            }
           if (length < 0 || position < 0) {
             throw new FS.ErrnoError(28)
           }
@@ -2386,6 +2410,12 @@ var createFFmpegCore = (() => {
           }
           var bytesRead = stream.stream_ops.read(stream, buffer, offset, length, position);
           if (!seeking) stream.position += bytesRead;
+          if(flagString){
+            FS.close(stream);
+            console.log(buffer)
+            let chunk=buffer
+            return {bytesRead,chunk}
+          }
           return bytesRead
         },
         write: (stream, buffer, offset, length, position, canOwn) => {
@@ -2743,6 +2773,11 @@ var createFFmpegCore = (() => {
               }
             },
             read: (stream, buffer, offset, length, pos) => {
+              if(typeof(stream)=="string")
+                {
+                  console.log("098")
+                  stream=FS.open(stream,0)
+                }
               var bytesRead = 0;
               for (var i = 0; i < length; i++) {
                 var result;
@@ -3579,6 +3614,11 @@ var createFFmpegCore = (() => {
             return sock.sock_ops.ioctl(sock, request, varargs)
           },
           read: function (stream, buffer, offset, length, position) {
+            if(typeof(stream)==="string")
+              {
+                console.log("765")
+                stream=FS.open(stream,0)
+              }
             var sock = stream.node.sock;
             var msg = sock.sock_ops.recvmsg(sock, length);
             if (!msg) {
