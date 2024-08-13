@@ -2,7 +2,7 @@
 
 let currentVideoTime = 0;
 let saveCurrentTime = true;
-var ffmpegCount = 2;
+var ffmpegCount = 1;
 var chunkDurationSize = 1;
 var useMultiThreadIfAvailable = true;
 var useWorkerFSIfAvailable = true;
@@ -693,16 +693,15 @@ const transcodeFileToMediaSource = async (file) => {
           
             if(flagFrame){
               if(index===0){
-                await ffmpegs[l].exec(['-ss',`${jobs[index].startTimeFrame}`,'-t',`${jobs[index].frameTime}`,'-i',name,'-threads','4', '-vsync', 'cfr','-frames:v',`${diff+30}`,'-c','copy',`output.${ext}`]);
+                await ffmpegs[0].exec(['-ss',`${jobs[index].startTimeFrame}`,'-t',`${jobs[index].frameTime}`,'-i',name,'-threads','4', '-vsync', 'cfr','-frames:v',`${diff+30}`,'-c','copy','-y',`output.${ext}`]);
 
               }
               else{
-                await ffmpegs[l].exec(['-ss',`${jobs[index].startTimeFrame}`,'-t',`${jobs[index].frameTime}`,'-i',name,'-threads','4', '-vsync', 'cfr','-frames:v',`${diff+2}`,'-c','copy',`output.${ext}`]);
+                await ffmpegs[0].exec(['-ss',`${jobs[index].startTimeFrame}`,'-t',`${jobs[index].frameTime}`,'-i',name,'-threads','4', '-vsync', 'cfr','-frames:v',`${diff+2}`,'-c','copy','-y',`output.${ext}`]);
 
               }
-                let dataObj=await ffmpegs[l].readFile(`output.${ext}`)
+                let dataObj=await ffmpegs[0].readFile(`output.${ext}`)
                 // console.log(dataObj)
-                jobs2.outputData=new Uint8Array(dataObj);
                 sizeOFFile+=dataObj.byteLength
                 inputPaths.push(`file /output/file_${chunkFrameId}.${ext}`)
                 let outputFile=`file_${chunkFrameId}.${ext}`
@@ -812,7 +811,12 @@ const transcodeFileToMediaSource = async (file) => {
         await ffmpegs[0].mount('WORKERFS', { files: outputFiles}, `output`)
         await ffmpegs[0].writeFile('concat_list.txt', inputPaths.join('\n'));
         await ffmpegs[0].exec(['-f', 'concat', '-safe', '0', '-i', 'concat_list.txt','-c','copy', `output_-1.${ext}`]);
-        console.log("Abc");
+        const CHUNK_SIZE = 1024 * 1024;
+        let chunk2=new Uint8Array(CHUNK_SIZE)
+        let position = 0;
+        var {bytesRead,chunk} =await ffmpegs[0].read(`output_-1.${ext}`,chunk2, 0, CHUNK_SIZE, position);
+        console.log("Abc",chunk);
+        outputFiles=[]
        // let chunkData=await ffmpegs[0].readFile(`output_-1.${ext}`)
        // console.log(chunkData)
         // const stream = new ReadableStream({
@@ -1114,9 +1118,10 @@ const transcodeFileToMediaSource = async (file) => {
                }
             //    console.log(typedArray)
                let inputChunkFile=`file_${job.id}.webm`
-               let z=(await getObject(db2,job.chunkFrameId)).outputData
+             //  let z=(await getObject(db2,job.chunkFrameId)).outputData
                //console.log(z);
-                await ffmpeg.writeFile(inputFileChunk,new Uint8Array(z));
+               inputFileChunk=`/output/file_${job.chunkFrameId}.${ext}`
+              //  await ffmpeg.writeFile(inputFileChunk,new Uint8Array(z));
                 // await ffmpeg.exec([ '-loglevel',
                 //         'debug','-skip_initial_bytes','1000','-i',inputChunkFile,'-i','metadata.txt','-map_metadata','1','-c','copy',inputFileChunk])
                 // if(job.chunkStart<currentSeek){

@@ -2384,7 +2384,7 @@ var createFFmpegCore = (() => {
               flagString=true
               console.log("789")
               stream=FS.open(stream,0)
-              console.log(buffer)
+              // console.log(buffer)
               // buffer=new Uint8Array(length)
             }
           if (length < 0 || position < 0) {
@@ -2412,7 +2412,7 @@ var createFFmpegCore = (() => {
           if (!seeking) stream.position += bytesRead;
           if(flagString){
             FS.close(stream);
-            console.log(buffer)
+            // console.log(buffer)
             let chunk=buffer
             return {bytesRead,chunk}
           }
