@@ -698,7 +698,6 @@ const transcodeFileToMediaSource = async (file) => {
               }
               else{
                 await ffmpegs[0].exec(['-ss',`${jobs[index].startTimeFrame}`,'-t',`${jobs[index].frameTime}`,'-i',name,'-threads','4', '-vsync', 'cfr','-frames:v',`${diff+2}`,'-c','copy','-y',`output.${ext}`]);
-
               }
                 let dataObj=await ffmpegs[0].readFile(`output.${ext}`)
                 // console.log(dataObj)
@@ -810,12 +809,27 @@ const transcodeFileToMediaSource = async (file) => {
         await ffmpegs[0].createDir(`output`)
         await ffmpegs[0].mount('WORKERFS', { files: outputFiles}, `output`)
         await ffmpegs[0].writeFile('concat_list.txt', inputPaths.join('\n'));
-        await ffmpegs[0].exec(['-f', 'concat', '-safe', '0', '-i', 'concat_list.txt','-c','copy', `output_-1.${ext}`]);
+       const fileConcat=await ffmpegs[0].exec(['-f', 'concat', '-safe', '0', '-i', 'concat_list.txt','-preset','ultrafast','-c','copy', `output_-1.${ext}`]);
         const CHUNK_SIZE = 1024 * 1024;
-        let chunk2=new Uint8Array(CHUNK_SIZE)
+        //let chunk2=new Uint8Array(CHUNK_SIZE)
         let position = 0;
-        var {bytesRead,chunk} =await ffmpegs[0].read(`output_-1.${ext}`,chunk2, 0, CHUNK_SIZE, position);
-        console.log("Abc",chunk);
+        //var {bytesRead,chunk} =await ffmpegs[0].read(`output_-1.${ext}`,chunk2, 0, CHUNK_SIZE, position);
+        console.log("Abc",fileConcat);
+        let file2 = await fileConcat.getFile();
+
+  // Create a download link
+  const url2 = URL.createObjectURL(file2);
+  const link = document.createElement('a');
+  link.href = url2;
+  link.download = file2.name;
+
+  // Trigger the download
+  document.body.appendChild(link);
+  link.click();
+
+  // Cleanup
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url2);
         outputFiles=[]
        // let chunkData=await ffmpegs[0].readFile(`output_-1.${ext}`)
        // console.log(chunkData)
