@@ -61,13 +61,17 @@ var createFFmpegCore = (() => {
       let flagConcat=false;
       let writable;
       let countConcat=0;
+      let flagCheck=false
       async function exec(..._args) {
         const args = [...Module["DEFAULT_ARGS"], ..._args];
         let fileHandle; 
         if(args.includes("concat")){
+          flagCheck=true
+        }
+        if(args.includes("concat")){
           flagConcat=true
           let outputFile=args[args.length-1];
-          console.log(outputFile);
+         // console.log(outputFile);
           const root = await navigator.storage.getDirectory();
         fileHandle= await root.getFileHandle(outputFile, { create: true });
       //  const accessHandle = await draftHandle.createSyncAccessHandle();
@@ -93,7 +97,7 @@ var createFFmpegCore = (() => {
          freePtrs(ptrArray,args.length)   
          if(flagConcat){
           flagConcat=false;
-          //writable.flush();
+          writable.flush();
            writable.close()
           return Promise.resolve(fileHandle)
          }
@@ -503,7 +507,7 @@ var createFFmpegCore = (() => {
             var result = WebAssembly.instantiateStreaming(response, imports);
             return result.then(callback, function (reason) {
               err("wasm streaming compile failed: " + reason);
-              console.log("dddddddd.......................")
+             // console.log("dddddddd.......................")
               err("falling back to ArrayBuffer instantiation");
               return instantiateArrayBuffer(binaryFile, imports, callback)
             })
@@ -886,7 +890,7 @@ var createFFmpegCore = (() => {
           read: function (stream, buffer, offset, length, pos) {
             if(typeof(stream)==="string")
               {
-                console.log("321")
+               // console.log("321")
                 stream=FS.open(stream,0)
               }
             if (!stream.tty || !stream.tty.ops.get_char) {
@@ -913,6 +917,7 @@ var createFFmpegCore = (() => {
             return bytesRead
           },
           write: function (stream, buffer, offset, length, pos) {
+
             if (!stream.tty || !stream.tty.ops.put_char) {
               throw new FS.ErrnoError(60)
             }
@@ -1108,7 +1113,7 @@ var createFFmpegCore = (() => {
           if (node.usedBytes > 0) node.contents.set(oldContents.subarray(0, node.usedBytes), 0)
         },
         resizeFileStorage: function (node, newSize) {
-          console.log("000000000")
+      //    console.log("000000000")
           if (node.usedBytes == newSize) return;
           if (newSize == 0) {
             node.contents = null;
@@ -1222,7 +1227,7 @@ var createFFmpegCore = (() => {
           read: function (stream, buffer, offset, length, position) {
             if(typeof(stream)==="string")
               {
-                console.log("123");
+              //  console.log("123");
                 stream=FS.open(stream,0)
               }
             var contents = stream.node.contents;
@@ -1236,6 +1241,45 @@ var createFFmpegCore = (() => {
             return size
           },
           write: function (stream, buffer, offset, length, position, canOwn) {
+            if(flagConcat){
+
+         
+              if (!length) return 0;
+              let node = stream.node;
+              node.timestamp = Date.now();  // Update timestamp
+              
+              if (buffer.subarray && node.usedBytes===0){
+                if (canOwn) {
+                  //node.contents = buffer.subarray(offset, offset + length);
+                  writable.write(buffer.subarray(offset, offset + length),{at:0}); 
+                //  if(!seeking) stream.position+=length // Take ownership
+                  node.usedBytes = length;
+                  return length;
+                }
+               else if (position === 0 && node.usedBytes==0 && flagConcat) {
+                //  node.contents = buffer.slice(offset, offset + length);
+                  writable.write(buffer.slice(offset, offset + length), { at: 0 });
+                //  if(!seeking) stream.position+=length
+                 node.usedBytes = length;
+                 return length;
+               }
+               else if (position + length <= node.usedBytes) {
+               // node.contents=new Uint8Array(buffer.subarray(offset, offset + length));
+                writable.write(buffer.subarray(offset,offset+length),{at:position})
+              //  if(!seeking) stream.position+=length
+                 node.usedBytes = length;
+                return length
+               }
+              }
+              if (buffer.subarray) {
+               // node.contents=new Uint8Array(buffer.subarray(offset, offset + length))
+                writable.write(buffer.subarray(offset, offset + length), { at: position });
+              }
+              node.usedBytes = Math.max(node.usedBytes, position + length);
+           //   if(!seeking) stream.position+=length
+              return length
+              // If position is 0 and concatenation is enabled
+            }
             if (!length) return 0;
             var node = stream.node;
             node.timestamp = Date.now();
@@ -1245,6 +1289,7 @@ var createFFmpegCore = (() => {
                 node.usedBytes = length;
                 return length
               } else if (node.usedBytes === 0 && position === 0) {
+              //  console.log(buffer.slice(offset, offset + length))
                 node.contents = buffer.slice(offset, offset + length);
                 node.usedBytes = length;
                 return length
@@ -1253,7 +1298,7 @@ var createFFmpegCore = (() => {
                 return length
               }
             }
-            console.log("Ddmjdkdkdkd");
+           // console.log("Ddmjdkdkdkd");
             MEMFS.expandFileStorage(node, position + length);
             if (node.contents.subarray && buffer.subarray) {
               node.contents.set(buffer.subarray(offset, offset + length), position)
@@ -1280,7 +1325,7 @@ var createFFmpegCore = (() => {
             return position
           },
           allocate: function (stream, offset, length) {
-            console.log("0000");
+          //  console.log("0000");
             MEMFS.expandFileStorage(stream.node, offset + length);
             stream.node.usedBytes = Math.max(stream.node.usedBytes, offset + length)
           },
@@ -1522,7 +1567,7 @@ var createFFmpegCore = (() => {
           read: function (stream, buffer, offset, length, position) {
             if(typeof(stream)==="string")
               {
-                console.log("456")
+              //  console.log("456")
                 stream=FS.open(stream,0)
               }
             if (position >= stream.node.size) return 0;
@@ -2407,7 +2452,7 @@ var createFFmpegCore = (() => {
           if(typeof(stream)==="string")
             {
               flagString=true
-              console.log("789")
+             // console.log("789")
               stream=FS.open(stream,0)
               // console.log(buffer)
               // buffer=new Uint8Array(length)
@@ -2469,47 +2514,33 @@ var createFFmpegCore = (() => {
             throw new FS.ErrnoError(70)
           }
           
-          console.log("lkj");
-          if (!length && flagConcat) return 0;
-          let node = stream.node;
-          node.timestamp = Date.now();  // Update timestamp
-                    
-          // If position is 0 and concatenation is enabled
-          if (position === 0 && flagConcat) {
-             writable.write(new Uint8Array(buffer.slice(offset, offset + length)).buffer, { at: 0 });
-             stream.position+=length
-            node.usedBytes = length;
-            return length;
-          }
+         // console.log("lkj");
+        
           
           // If concatenation mode is enabled
-          else if (flagConcat) {
+          // else if (flagConcat) {
             
             // Adjust position after writing
        //     console.log((new Uint8Array(buffer.slice(offset, offset + length)).buffer), position);
 
             // Write with offset adjustment
-           writable.write(new Uint8Array(buffer.subarray(offset, offset + length)).buffer, { at: position });
-           stream.position += length;
+          //  writable.write(new Uint8Array(buffer.subarray(offset, offset + length)).buffer, { at: position });
+          //  stream.position += length;
 
-            node.usedBytes = Math.max(node.usedBytes, position + length);  // Update used bytes
-            return length;
-          }
+          //   node.usedBytes = Math.max(node.usedBytes, position + length);  // Update used bytes
+          //   return length;
+         // }
           
           // General write case without concatenation
-          else {
-            if (canOwn) {
-              writable.write( new Uint8Array(buffer.subarray(offset, offset + length)));  // Take ownership
-              node.usedBytes = length;
-              return length;
-            }
-          }
+          // else {
+           
+          // }
           var bytesWritten = stream.stream_ops.write(stream, buffer, offset, length, position, canOwn);
           if (!seeking) stream.position += bytesWritten;
           return bytesWritten
         },
         allocate: (stream, offset, length) => {
-          console.log("12345")
+        //  console.log("12345")
           if(flagAllocated===true){
             return;
           }
@@ -2799,7 +2830,7 @@ var createFFmpegCore = (() => {
           return FS.create(path, mode)
         },
         createDataFile: (parent, name, data, canRead, canWrite, canOwn) => {
-          console.log("data file")
+        //  console.log("data file")
           var path = name;
           if (parent) {
             parent = typeof parent == "string" ? parent : FS.getPath(parent);
@@ -2838,7 +2869,7 @@ var createFFmpegCore = (() => {
             read: (stream, buffer, offset, length, pos) => {
               if(typeof(stream)=="string")
                 {
-                  console.log("098")
+               //   console.log("098")
                   stream=FS.open(stream,0)
                 }
               var bytesRead = 0;
@@ -3679,7 +3710,7 @@ var createFFmpegCore = (() => {
           read: function (stream, buffer, offset, length, position) {
             if(typeof(stream)==="string")
               {
-                console.log("765")
+              //  console.log("765")
                 stream=FS.open(stream,0)
               }
             var sock = stream.node.sock;
@@ -5295,6 +5326,9 @@ var createFFmpegCore = (() => {
           var ptr = HEAPU32[iov >> 2];
           var len = HEAPU32[iov + 4 >> 2];
           iov += 8;
+          if(flagCheck){
+          //  console.log("dff")
+         }
           var curr = FS.write(stream, HEAP8, ptr, len, offset);
           if (curr < 0) return -1;
           ret += curr;
