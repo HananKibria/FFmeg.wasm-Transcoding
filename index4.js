@@ -144,7 +144,7 @@ function durationToSeconds(duration) {
 //   };
 const load = async () => {
     loadBtn.setAttribute('disabled', true);
-    if (useMultiThreadIfAvailable ) {
+    if (false ) {
         console.log("threading........................................")
         loadConfig = {
         // workerLoadURL: await toBlobURL(`${baseURL}/814.ffmpeg.js`,  'text/javascript'),
@@ -155,13 +155,13 @@ const load = async () => {
     }
 }
     else {
-    // loadConfig = 
-    // {
-    //     coreURL: await toBlobURL(`${baseURL}/core_custom_32_1024/ffmpeg-core.js`, 'text/javascript'),
-    //     wasmURL: await toBlobURL(`${baseURL}/core_custom_32_1024/ffmpeg-core.wasm`, 'application/wasm'),
-    //     workerLoadURL: await toBlobURL(`${baseURL}}/814.ffmpeg.js`,  'text/javascript'),
+    loadConfig = 
+    {
+        coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
+        wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
+     //   workerLoadURL: await toBlobURL(`${baseURL}}/814.ffmpeg.js`,  'text/javascript'),
 
-    // };
+    };
     }
     var tasks = [];
     while (ffmpegs.length < ffmpegCount) {
@@ -340,6 +340,68 @@ const transcodeFileToMediaSource = async (file) => {
     console.log(name)
 
      attachVideoDebug(videoEl);
+
+     const imageFiles = [
+      '2.jpg', 
+      '3.jpg', 
+      '4.jpg',
+      '5.jpg',
+      '1.jpg',
+       // Images of different patterns
+      // Add as many images as needed here
+    ];
+  
+    // Load each image file into FFmpeg's virtual filesystem
+    let paths=[]
+    for (let i = 0; i < imageFiles.length; i++) {
+      const fileName = `img${i+1}.jpg`; // Ensure sequential naming
+      console.log(fileName)
+      paths.push(`file ${fileName}`)
+      const response = await fetch(`jpg/${imageFiles[i]}`);
+  const fileArrayBuffer = await response.arrayBuffer();
+      await ffmpegs[0].writeFile( fileName, new Uint8Array(fileArrayBuffer));
+    }
+    await ffmpegs[0].writeFile('filelist.txt', paths.join('\n'));
+
+    // Load audio file
+    const response = await fetch('images/abc.mp3');
+  const fileArrayBuffer = await response.arrayBuffer();
+    await ffmpegs[0].writeFile( 'audio.mp3', new Uint8Array(fileArrayBuffer));
+    const onlog = (ev) => {
+      console.log( ev.message);
+  };
+  ffmpegs[0].on('log', onlog);
+  await ffmpegs[0].exec([
+    '-framerate', '0.5',
+    '-i', 'img%d.jpg',
+    '-i', 'audio.mp3',
+    '-vf', 'scale=276:184', // Adjusted to the nearest even numbers
+    '-map', '0:v',
+    '-map', '1:a',
+    '-c:v', 'libx264',
+    '-preset', 'fast',  
+    '-crf', '23',       
+    '-c:a', 'aac',
+    '-b:a', '192k',     
+    '-strict', 'experimental',
+    '-shortest',
+    'output.mp4'
+]);
+    ffmpegs[0].off('log', onlog);
+    // Get the result from FFmpeg's virtual filesystem
+    const data =await  ffmpegs[0].readFile( 'output.mp4');
+    //let fileImage = await fileHandle.getFile();
+    // Convert the result to a Blob and create a URL for download
+    const videoBlob = new Blob([data.buffer], { type: 'video/mp4' });
+    const url = URL.createObjectURL(videoBlob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'output_video.mp4';
+    document.body.appendChild(a);
+    a.click();
+  
+    // Cleanup
+    URL.revokeObjectURL(url);
     // mount the input file in each ffmpeg instance
     // (custom ffmpeg build with WORKERFS enabled)
     var useWorkerFS = ffmpegs[0].mount && ffmpegs[0].unmount && useWorkerFSIfAvailable;
@@ -690,7 +752,9 @@ const transcodeFileToMediaSource = async (file) => {
             console.log(frameTimes)
             console.log(jobs[index])
             await addObject(db,jobs[index])
-          
+            console.log("index......",index)
+            console.log(jobs[index].startTimeFrame)
+            console.log(jobs[index].frameTime)
             if(flagFrame){
               if(index===0){
                 await ffmpegs[0].exec(['-ss',`${jobs[index].startTimeFrame}`,'-t',`${jobs[index].frameTime}`,'-i',name,'-threads','4', '-vsync', 'cfr','-frames:v',`${diff+30}`,'-c','copy','-y',`output.${ext}`]);
@@ -702,13 +766,16 @@ const transcodeFileToMediaSource = async (file) => {
                 let dataObj=await ffmpegs[0].readFile(`output.${ext}`)
                 // console.log(dataObj)
                 sizeOFFile+=dataObj.byteLength
-                inputPaths.push(`file /output/file_${chunkFrameId}.${ext}`)
-                let outputFile=`file_${chunkFrameId}.${ext}`
-                const fileHandle = await root.getFileHandle(outputFile, { create: true });
-                const writable = await fileHandle.createWritable();
-               await writable.write(dataObj.buffer)
-                await writable.close()
-                outputFiles.push(await fileHandle.getFile())
+                if(index!=0){
+                  inputPaths.push(`file /output/file_${chunkFrameId}.${ext}`)
+                  let outputFile=`file_${chunkFrameId}.${ext}`
+                  const fileHandle = await root.getFileHandle(outputFile, { create: true });
+                  const writable = await fileHandle.createWritable();
+                 await writable.write(dataObj.buffer)
+                  await writable.close()
+                  outputFiles.push(await fileHandle.getFile())
+                }
+   
                 if(chunkFrameStart>=frameEnd){
                 durationFrameLeft=frameEnd-frameStart
                 chunkFrameId=chunkFrameId+1
@@ -806,6 +873,7 @@ const transcodeFileToMediaSource = async (file) => {
   //     //    offsetFile=offsetFile+chunkData.byteLength
   //       }
         console.log("ghj")
+        console.log(outputFiles)
         await ffmpegs[0].createDir(`output`)
         await ffmpegs[0].mount('WORKERFS', { files: outputFiles}, `output`)
         await ffmpegs[0].writeFile('concat_list.txt', inputPaths.join('\n'));
